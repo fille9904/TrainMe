@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+
+{% block title %}Logga in | TrainMe{% endblock %}
+
+{% block content %}
+<section class="form-shell narrow">
+    <div>
+        <p class="eyebrow">Valkommen tillbaka</p>
+        <h1>Logga in</h1>
+        <p class="lead">Fortsatt med AI-coachning och Strava-underlag.</p>
+    </div>
+
+    <form class="form-card" method="post" action="/logga-in">
+        {% if error %}
+            <p class="form-error">Fel e-post eller losenord.</p>
+        {% endif %}
+
+        <label>E-post
+            <input name="email" type="email" autocomplete="email" required>
+        </label>
+
+        <label>Losenord
+            <input name="password" type="password" autocomplete="current-password" required>
+        </label>
+
+        <button class="primary-button" type="submit">Logga in</button>
+        <a class="text-link" href="/registrera">Skapa konto</a>
+    </form>
+</section>
+{% endblock %}

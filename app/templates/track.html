@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+
+{% block title %}{{ track.name }} | TrainMe{% endblock %}
+
+{% block content %}
+<section class="page-hero {{ track.accent }}">
+    <p class="eyebrow">TrainMe spar</p>
+    <h1>{{ track.name }}</h1>
+    <p class="lead">{{ track.tagline }}</p>
+    <div class="hero-actions">
+        {% if user %}
+            <a class="primary-button" href="/ai-coach">Oppna AI coach</a>
+            <a class="ghost-button" href="/strava">Koppla Strava</a>
+        {% else %}
+            <a class="primary-button" href="/registrera">Skapa konto for AI</a>
+            <a class="ghost-button" href="#subkategorier">Fortsatt gratis</a>
+        {% endif %}
+    </div>
+</section>
+
+<section class="content-grid">
+    <div class="focus-panel">
+        <h2>Fokus</h2>
+        <ul class="check-list">
+            {% for item in track.focus %}
+                <li>{{ item }}</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <div class="locked-panel">
+        <h2>AI + Strava</h2>
+        {% if user %}
+            <p>Din AI-coach kan anvanda ditt valda spar, mal och framtida Strava-data for mer personliga tips.</p>
+            <a class="text-link" href="/strava">Hantera Strava-koppling</a>
+        {% else %}
+            <p>Skapa konto for att lata TrainMe spara profil, mal och Strava-underlag till AI-hjalpen.</p>
+            <a class="text-link" href="/registrera">Las upp AI-hjalp</a>
+        {% endif %}
+    </div>
+</section>
+
+<section class="subcategory-grid" id="subkategorier">
+    {% for sub_id, subcategory in track.subcategories.items() %}
+        <article class="subcategory-card">
+            <span class="sub-icon">{{ loop.index }}</span>
+            <h2>{{ subcategory.name }}</h2>
+            <p>{{ subcategory.copy }}</p>
+            <a class="text-link" href="/spar/{{ track_id }}/{{ sub_id }}">Se upplagg</a>
+        </article>
+    {% endfor %}
+</section>
+{% endblock %}

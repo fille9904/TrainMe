@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block content %}
+<section class="hero">
+    <div class="hero-copy">
+        <p class="eyebrow">Traningshjalp for olika nivaer</p>
+        <h1>TrainMe</h1>
+        <p class="lead">
+            Valj om du ar Atlet, Aktiv eller vill Komma igang. Du kan utforska gratis,
+            och med konto far du AI-hjalp och Strava-baserade insikter.
+        </p>
+        <div class="hero-actions">
+            <a class="primary-button" href="/registrera">Skapa konto</a>
+            <a class="ghost-button" href="#spar">Utforska utan konto</a>
+        </div>
+    </div>
+
+    <div class="hero-panel" aria-label="TrainMe sammanfattning">
+        <div>
+            <span class="metric">3</span>
+            <span class="metric-label">traningsspar</span>
+        </div>
+        <div>
+            <span class="metric">9</span>
+            <span class="metric-label">subkategorier</span>
+        </div>
+        <div>
+            <span class="metric">AI</span>
+            <span class="metric-label">med konto</span>
+        </div>
+    </div>
+</section>
+
+<section class="track-grid" id="spar" aria-label="TrainMe spar">
+    {% for id, track in tracks.items() %}
+        <article class="track-card {{ track.accent }}">
+            <div class="track-card-header">
+                <p class="eyebrow">{{ track.name }}</p>
+                <h2>{{ track.name }}</h2>
+            </div>
+            <p>{{ track.tagline }}</p>
+            <ul class="check-list">
+                {% for item in track.focus %}
+                    <li>{{ item }}</li>
+                {% endfor %}
+            </ul>
+            <div class="chip-row">
+                {% for subcategory in track.subcategories.values() %}
+                    <span>{{ subcategory.name }}</span>
+                {% endfor %}
+            </div>
+            <a class="text-link" href="/spar/{{ id }}">Oppna {{ track.name }}</a>
+        </article>
+    {% endfor %}
+</section>
+
+<section class="access-band">
+    <div>
+        <p class="eyebrow">Gratis eller konto</p>
+        <h2>Borja direkt. Skapa konto nar du vill ha mer hjalp.</h2>
+    </div>
+    <div class="access-grid">
+        <div>
+            <h3>Utan konto</h3>
+            <p>Las om spar, subkategorier, traningsformer och grundtips.</p>
+        </div>
+        <div>
+            <h3>Med konto</h3>
+            <p>Fa AI-coachning, spara mal och koppla Strava for battre rekommendationer.</p>
+        </div>
+    </div>
+</section>
+{% endblock %}

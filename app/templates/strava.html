@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block title %}Strava | TrainMe{% endblock %}
+
+{% block content %}
+<section class="page-hero performance">
+    <p class="eyebrow">Strava</p>
+    <h1>Koppla Strava</h1>
+    <p class="lead">Alla tre spar kan anvanda Strava for att ge AI-coachen battre information om din traning.</p>
+</section>
+
+<section class="content-grid">
+    <div class="focus-panel">
+        <h2>Vad TrainMe kan anvanda</h2>
+        <ul class="check-list">
+            <li>Passhistorik och frekvens</li>
+            <li>Distans, tid, intensitet och utveckling</li>
+            <li>Underlag for smartare tips om belastning och aterhamtning</li>
+        </ul>
+    </div>
+    <div class="locked-panel">
+        <h2>Integration</h2>
+        <p>Strava-knappen ar forberedd. For riktig koppling behovs Strava API-nycklar och OAuth-flode.</p>
+        <button class="primary-button" type="button" disabled>Koppla Strava snart</button>
+    </div>
+</section>
+{% endblock %}

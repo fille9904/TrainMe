@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}{{ subcategory.name }} | {{ track.name }} | TrainMe{% endblock %}
+
+{% block content %}
+<section class="page-hero {{ track.accent }}">
+    <p class="eyebrow">{{ track.name }}</p>
+    <h1>{{ subcategory.name }}</h1>
+    <p class="lead">{{ subcategory.copy }}</p>
+</section>
+
+<section class="program-layout">
+    <div>
+        <h2>Startforslag</h2>
+        <div class="step-list">
+            <div>
+                <span>01</span>
+                <p>Valj 2-4 pass per vecka utifran din nuvarande niva.</p>
+            </div>
+            <div>
+                <span>02</span>
+                <p>Folj upp energi, aterhamtning och progression efter varje vecka.</p>
+            </div>
+            <div>
+                <span>03</span>
+                <p>{% if track_id == "komma-igang" %}Bygg kosten runt enkla rutiner: protein, gronsaker och regelbundna maltider.{% elif track_id == "aktiv" %}Justera kost och vila sa kroppen haller sig frisk over tid.{% else %}Anvand data fran pass for att styra belastning och kvalitet.{% endif %}</p>
+            </div>
+        </div>
+    </div>
+
+    <aside class="locked-panel">
+        <h2>Personlig hjalp</h2>
+        {% if user %}
+            <p>Du ar inloggad. AI-coachen kan anvanda ditt spar och dina mal for att ge mer relevanta forslag.</p>
+            <a class="primary-button compact" href="/ai-coach">Oppna AI coach</a>
+        {% else %}
+            <p>Det har fungerar utan konto. Skapa konto for AI-hjalp, sparade mal och Strava-koppling.</p>
+            <a class="primary-button compact" href="/registrera">Skapa konto</a>
+        {% endif %}
+    </aside>
+</section>
+{% endblock %}
