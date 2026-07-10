@@ -14,4 +14,4 @@ Varje spar har subkategorierna styrka, blandat och kondition. Besokare kan anvan
 python app/main.py
 ```
 
-Oppna sedan `http://127.0.0.1:8000`.
+Öppna sedan `http://127.0.0.1:8000`.
