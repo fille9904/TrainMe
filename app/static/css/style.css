@@ -356,6 +356,38 @@ main {
     border-top: 1px solid var(--line);
 }
 
+.strava-onboarding {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 18px;
+    max-width: 1180px;
+    margin: 24px auto 0;
+    padding: 24px;
+    border: 1px solid rgba(252, 76, 2, 0.45);
+    border-radius: 8px;
+    background: rgba(252, 76, 2, 0.08);
+}
+
+.strava-onboarding h2,
+.strava-onboarding p {
+    margin: 0;
+}
+
+.strava-onboarding p {
+    color: var(--muted);
+    line-height: 1.5;
+}
+
+.mini-steps {
+    display: grid;
+    gap: 8px;
+    margin: 16px 0 20px;
+    padding-left: 22px;
+    color: var(--muted);
+    line-height: 1.45;
+}
+
 .access-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -384,6 +416,11 @@ main {
 
 .subcategory-grid {
     margin-top: 24px;
+}
+
+.track-subcategories {
+    margin-top: 8px;
+    margin-bottom: 12px;
 }
 
 .subcategory-card {
@@ -475,9 +512,657 @@ main {
     background: rgba(255, 122, 89, 0.1);
 }
 
+.form-success {
+    margin: 0 0 16px;
+    padding: 12px;
+    border: 1px solid rgba(43, 213, 118, 0.55);
+    border-radius: 8px;
+    color: #bdf8d4;
+    background: rgba(43, 213, 118, 0.1);
+}
+
 .coach-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     margin-top: 24px;
+}
+
+.athlete-coach-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr);
+    column-gap: 18px;
+    row-gap: 8px;
+    max-width: 1180px;
+    margin: 24px auto 0;
+}
+
+.weekly-panel {
+    grid-row: span 2;
+}
+
+.panel-heading-row {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 14px;
+    margin-bottom: 10px;
+}
+
+.panel-heading-row h2 {
+    margin: 0;
+}
+
+.panel-heading-row span {
+    color: var(--green);
+    font-size: 13px;
+    font-weight: 900;
+}
+
+.week-date-stack {
+    display: grid;
+    justify-items: end;
+    gap: 2px;
+    text-align: right;
+}
+
+.week-date-stack small {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+}
+
+.plan-refresh-form {
+    margin: 16px 0 4px;
+}
+
+.week-plan {
+    display: grid;
+    gap: 10px;
+    margin-top: 18px;
+}
+
+.week-day {
+    display: grid;
+    grid-template-columns: 92px 1fr;
+    gap: 12px;
+    align-items: start;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface-strong);
+}
+
+.editable-week-day {
+    grid-template-columns: 1fr;
+}
+
+.week-day span {
+    color: var(--green);
+    font-weight: 900;
+}
+
+.week-day p {
+    margin: 0;
+}
+
+.session-card-content {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+}
+
+.tutorial-link {
+    justify-self: start;
+    color: var(--yellow);
+    font-size: 13px;
+    font-weight: 900;
+}
+
+.editable-week-day summary {
+    cursor: pointer;
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    list-style: none;
+}
+
+.editable-week-day summary::-webkit-details-marker {
+    display: none;
+}
+
+.editable-week-day summary::after {
+    content: "+";
+    justify-self: end;
+    grid-column: 2;
+    color: var(--muted);
+    font-size: 18px;
+    font-weight: 900;
+}
+
+.editable-week-day[open] summary {
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--line);
+}
+
+.editable-week-day[open] summary::after {
+    content: "-";
+}
+
+.done-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 14px;
+    font-weight: 800;
+}
+
+.done-toggle input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--green);
+}
+
+.plan-field {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.plan-edit-stack {
+    display: grid;
+    gap: 12px;
+    margin-top: 12px;
+    min-width: 0;
+}
+
+.plan-field textarea {
+    width: 100%;
+    resize: vertical;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #0d0f13;
+    color: var(--text);
+    padding: 10px 12px;
+    line-height: 1.45;
+}
+
+.editable-week-day .ghost-button {
+    justify-self: end;
+}
+
+.strava-summary {
+    display: grid;
+    gap: 16px;
+}
+
+.strava-total-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.strava-total-grid div {
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface-strong);
+}
+
+.strava-total-grid span {
+    display: block;
+    color: var(--green);
+    font-size: 28px;
+    font-weight: 900;
+}
+
+.strava-total-grid p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.strava-activity-list {
+    display: grid;
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.strava-activity-list li {
+    display: grid;
+    gap: 5px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #0d0f13;
+}
+
+.strava-activity-list strong {
+    color: var(--text);
+}
+
+.strava-activity-list span {
+    color: var(--muted);
+    line-height: 1.45;
+}
+
+.meal-tips {
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+}
+
+.meal-tips-heading {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.meal-tips h3 {
+    margin: 0;
+}
+
+.meal-tips ul {
+    display: grid;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.meal-tips li {
+    display: grid;
+    gap: 5px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #0d0f13;
+}
+
+.meal-tips strong {
+    color: var(--text);
+}
+
+.meal-tips span {
+    color: var(--muted);
+    line-height: 1.45;
+}
+
+.meal-tips .text-link {
+    margin-top: 4px;
+}
+
+.recipe-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.recipe-save-form {
+    margin: 0;
+}
+
+.recipe-source-fallbacks {
+    margin-top: 4px;
+}
+
+.recipe-source-fallbacks summary {
+    cursor: pointer;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 900;
+    list-style: none;
+}
+
+.recipe-source-fallbacks summary::-webkit-details-marker {
+    display: none;
+}
+
+.recipe-source-fallbacks summary::after {
+    content: "+";
+    margin-left: 8px;
+    color: var(--green);
+}
+
+.recipe-source-fallbacks[open] summary::after {
+    content: "-";
+}
+
+.recipe-source-fallbacks div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.recipe-source-fallbacks a {
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--text);
+    font-size: 12px;
+    font-weight: 900;
+}
+
+.more-recipes {
+    margin-top: 12px;
+}
+
+.more-recipes summary {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    min-height: 38px;
+    padding: 8px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    color: var(--text);
+    font-weight: 900;
+    list-style: none;
+}
+
+.more-recipes summary::-webkit-details-marker {
+    display: none;
+}
+
+.more-recipes summary::after {
+    content: "+";
+    margin-left: 10px;
+    color: var(--green);
+}
+
+.more-recipes[open] summary::after {
+    content: "-";
+}
+
+.more-recipes ul {
+    margin-top: 12px;
+}
+
+.chat-panel {
+    min-height: 420px;
+}
+
+.chat-window {
+    display: grid;
+    align-content: start;
+    gap: 10px;
+    min-height: 190px;
+    max-height: 280px;
+    overflow-y: auto;
+    margin: 16px 0;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #0d0f13;
+}
+
+.chat-message {
+    max-width: 92%;
+    padding: 10px 12px;
+    border-radius: 8px;
+    line-height: 1.45;
+}
+
+.ai-message {
+    justify-self: start;
+    color: var(--text);
+    background: var(--surface-strong);
+}
+
+.user-message {
+    justify-self: end;
+    color: #07100b;
+    background: var(--green);
+}
+
+.chat-form {
+    display: grid;
+    gap: 10px;
+}
+
+.chat-form textarea {
+    width: 100%;
+    resize: vertical;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #0d0f13;
+    color: var(--text);
+    padding: 12px 14px;
+}
+
+.archive-list {
+    display: grid;
+    gap: 14px;
+    max-width: 1180px;
+    margin: 24px auto 0;
+}
+
+.profile-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    max-width: 1180px;
+    margin: 22px auto 0;
+}
+
+.profile-section {
+    max-width: 1180px;
+    margin: 28px auto 0;
+    scroll-margin-top: 24px;
+}
+
+.profile-section .archive-list {
+    max-width: none;
+    margin: 0;
+}
+
+.profile-card {
+    padding: 22px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+}
+
+.profile-card + .profile-card {
+    margin-top: 18px;
+}
+
+.profile-card h2,
+.section-heading-row h2 {
+    margin: 0;
+}
+
+.section-heading-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.profile-data-list {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+    margin: 18px 0 0;
+}
+
+.profile-data-list div {
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #0d0f13;
+}
+
+.profile-data-list dt {
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.profile-data-list dd {
+    margin: 6px 0 0;
+    color: var(--text);
+    font-weight: 900;
+}
+
+.weight-entry-form {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) auto;
+    gap: 12px;
+    align-items: end;
+    margin-top: 16px;
+}
+
+.weight-entry-form label {
+    display: grid;
+    gap: 8px;
+    color: var(--muted);
+    font-weight: 800;
+}
+
+.weight-entry-form input {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #0d0f13;
+    color: var(--text);
+    padding: 12px 14px;
+}
+
+.weight-progress {
+    display: grid;
+    gap: 16px;
+    margin-top: 18px;
+}
+
+.weight-summary {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.weight-summary div,
+.weight-empty {
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #0d0f13;
+}
+
+.weight-summary span,
+.weight-summary small,
+.weight-empty p {
+    color: var(--muted);
+}
+
+.weight-summary strong {
+    display: block;
+    margin: 4px 0;
+    color: var(--text);
+    font-size: 26px;
+}
+
+.weight-empty h3 {
+    margin: 0 0 8px;
+}
+
+.weight-chart {
+    width: 100%;
+    min-height: 220px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #0d0f13;
+}
+
+.weight-chart line {
+    stroke: rgba(232, 238, 235, 0.22);
+    stroke-width: 2;
+}
+
+.weight-chart polyline {
+    fill: none;
+    stroke: var(--green);
+    stroke-width: 4;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+}
+
+.weight-chart circle {
+    fill: var(--yellow);
+    stroke: #0d0f13;
+    stroke-width: 2;
+}
+
+.weight-history {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.weight-history li {
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #0d0f13;
+}
+
+.weight-history strong,
+.weight-history span {
+    display: block;
+}
+
+.weight-history span {
+    margin-top: 4px;
+    color: var(--muted);
+}
+
+.archive-item,
+.empty-archive {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 0.45fr);
+    gap: 18px;
+    padding: 22px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: var(--shadow);
+}
+
+.archive-item h2,
+.empty-archive h2 {
+    margin: 0 0 10px;
+}
+
+.archive-date {
+    display: inline-flex;
+    margin-bottom: 10px;
+    color: var(--green);
+    font-weight: 900;
+}
+
+.archive-comment {
+    margin: 0;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #0d0f13;
+}
+
+.saved-recipe-item {
+    grid-template-columns: minmax(0, 1fr) auto;
 }
 
 @media (max-width: 920px) {
@@ -486,8 +1171,14 @@ main {
     .access-band,
     .content-grid,
     .program-layout,
-    .form-shell {
+    .form-shell,
+    .strava-onboarding {
         grid-template-columns: 1fr;
+    }
+
+    .strava-onboarding {
+        align-items: flex-start;
+        flex-direction: column;
     }
 
     .nav-links {
@@ -504,8 +1195,19 @@ main {
     .track-grid,
     .subcategory-grid,
     .coach-grid,
+    .athlete-coach-grid,
+    .archive-item,
+    .empty-archive,
+    .profile-data-list,
+    .weight-entry-form,
+    .weight-summary,
+    .weight-history,
     .access-grid {
         grid-template-columns: 1fr;
+    }
+
+    .weekly-panel {
+        grid-row: auto;
     }
 
     .hero {
@@ -549,7 +1251,20 @@ main {
     }
 
     .two-fields,
-    .step-list div {
+    .strava-total-grid,
+    .step-list div,
+    .editable-week-day,
+    .week-day {
         grid-template-columns: 1fr;
+    }
+
+    .editable-week-day .ghost-button {
+        grid-column: 1;
+        justify-self: stretch;
+    }
+
+    .panel-heading-row {
+        align-items: flex-start;
+        flex-direction: column;
     }
 }
