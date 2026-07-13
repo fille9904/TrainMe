@@ -161,6 +161,7 @@ def fetch_strava_summary(user_id: int) -> tuple[str | None, str | None]:
 
     total_distance_m = sum(float(activity.get("distance") or 0) for activity in activities)
     total_seconds = sum(float(activity.get("moving_time") or 0) for activity in activities)
+    total_calories = sum(float(activity.get("calories") or 0) for activity in activities)
     sport_counts: dict[str, int] = {}
     for activity in activities:
         sport = activity.get("sport_type") or activity.get("type") or "Activity"
@@ -170,7 +171,8 @@ def fetch_strava_summary(user_id: int) -> tuple[str | None, str | None]:
     distance_km = total_distance_m / 1000
     hours = total_seconds / 3600
     return (
-        f"Latest 10 Strava sessions: {sports}. Total: {distance_km:.1f} km and {hours:.1f} hours.",
+        f"Latest 10 Strava sessions: {sports}. Total: {distance_km:.1f} km, {hours:.1f} hours"
+        f"{f', and {total_calories:.0f} calories burned' if total_calories else ''}.",
         None,
     )
 
@@ -191,6 +193,7 @@ def fetch_strava_summary_html(user_id: int) -> tuple[str | None, str | None, str
 
     total_distance_m = sum(float(activity.get("distance") or 0) for activity in activities)
     total_seconds = sum(float(activity.get("moving_time") or 0) for activity in activities)
+    total_calories = sum(float(activity.get("calories") or 0) for activity in activities)
     rows = []
     summary_lines = []
     for activity in activities[:10]:
@@ -198,19 +201,22 @@ def fetch_strava_summary_html(user_id: int) -> tuple[str | None, str | None, str
         name = activity.get("name") or sport
         distance_km = float(activity.get("distance") or 0) / 1000
         minutes = int(float(activity.get("moving_time") or 0) / 60)
+        calories = int(float(activity.get("calories") or 0))
         start = (activity.get("start_date_local") or activity.get("start_date") or "")[:10]
-        summary_lines.append(f"{sport}: {distance_km:.1f} km, {minutes} min")
+        calories_text = f" - {calories} kcal" if calories else ""
+        summary_lines.append(f"{sport}: {distance_km:.1f} km, {minutes} min{calories_text}")
         rows.append(
             f"""
             <li>
                 <strong>{esc(name)}</strong>
-                <span>{esc(start)} - {esc(sport)} - {distance_km:.1f} km - {minutes} min</span>
+                <span>{esc(start)} - {esc(sport)} - {distance_km:.1f} km - {minutes} min{esc(calories_text)}</span>
             </li>
             """
         )
 
     summary = (
-        f"Latest 10 Strava sessions. Total: {total_distance_m / 1000:.1f} km and {total_seconds / 3600:.1f} hours. "
+        f"Latest 10 Strava sessions. Total: {total_distance_m / 1000:.1f} km, {total_seconds / 3600:.1f} hours"
+        f"{f', and {total_calories:.0f} calories burned' if total_calories else ''}. "
         f"Session: {' | '.join(summary_lines)}."
     )
     html_block = f"""
@@ -219,8 +225,42 @@ def fetch_strava_summary_html(user_id: int) -> tuple[str | None, str | None, str
             <div><span>{len(activities[:10])}</span><p>latest sessions</p></div>
             <div><span>{total_distance_m / 1000:.1f}</span><p>total km</p></div>
             <div><span>{total_seconds / 3600:.1f}</span><p>total hours</p></div>
+            <div><span>{total_calories:.0f}</span><p>calories burned</p></div>
         </div>
         <ul class="strava-activity-list">{''.join(rows)}</ul>
     </div>
     """
     return summary, html_block, None
+
+
+def activity_started_between(activity: dict[str, Any], start_ts: int, end_ts: int) -> bool:
+    started = activity.get("start_date_local") or activity.get("start_date")
+    if not started:
+        return True
+    try:
+        activity_time = int(time.mktime(time.strptime(started[:19], "%Y-%m-%dT%H:%M:%S")))
+    except ValueError:
+        return True
+    return start_ts <= activity_time < end_ts
+
+
+def fetch_strava_calories_burned(user_id: int, start_ts: int | None = None, end_ts: int | None = None) -> tuple[int | None, str | None]:
+    connection = get_strava_connection(user_id)
+    if not connection:
+        return None, None
+
+    try:
+        connection = refresh_strava_connection(connection)
+        query = {"per_page": 30}
+        if start_ts is not None:
+            query["after"] = start_ts
+        if end_ts is not None:
+            query["before"] = end_ts
+        activities = get_json(f"{STRAVA_API_BASE}/athlete/activities?{urlencode(query)}", connection["access_token"])
+    except (HTTPError, URLError, TimeoutError, RuntimeError) as exc:
+        return None, f"Could not fetch Strava calories right now: {exc}"
+
+    if start_ts is not None and end_ts is not None:
+        activities = [activity for activity in activities or [] if activity_started_between(activity, start_ts, end_ts)]
+    total_calories = sum(float(activity.get("calories") or 0) for activity in activities or [])
+    return int(total_calories) if total_calories else None, None

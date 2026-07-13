@@ -118,6 +118,18 @@ def ensure_db() -> None:
         )
         db.execute(
             """
+            CREATE TABLE IF NOT EXISTS calorie_entries (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER,
+                label TEXT,
+                calories INTEGER,
+                logged_at INTEGER,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+            """
+        )
+        db.execute(
+            """
             CREATE TABLE IF NOT EXISTS sessions (
                 token VARCHAR PRIMARY KEY,
                 user_id INTEGER,

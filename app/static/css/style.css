@@ -700,7 +700,7 @@ main {
 
 .strava-total-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 10px;
 }
 
@@ -754,6 +754,165 @@ main {
     margin-top: 22px;
     padding-top: 18px;
     border-top: 1px solid var(--line);
+}
+
+.calorie-counter {
+    display: grid;
+    gap: 14px;
+    margin-top: 22px;
+    padding-top: 18px;
+    border-top: 1px solid var(--line);
+}
+
+.calorie-counter h3 {
+    margin: 0;
+}
+
+.calorie-progress {
+    display: grid;
+    gap: 8px;
+}
+
+.calorie-progress-text {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--muted);
+    font-size: 13px;
+}
+
+.calorie-progress-text strong {
+    color: var(--text);
+}
+
+.calorie-progress-track {
+    height: 12px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: #0d0f13;
+}
+
+.calorie-progress-fill {
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, var(--green), #f6c85f);
+}
+
+.calorie-total-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.calorie-total-grid div {
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #0d0f13;
+}
+
+.calorie-total-grid span {
+    display: block;
+    color: var(--green);
+    font-size: 24px;
+    font-weight: 900;
+}
+
+.calorie-total-grid p {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 12px;
+}
+
+.calorie-entry-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 120px auto;
+    gap: 10px;
+    align-items: end;
+}
+
+.calorie-entry-form label {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.calorie-entry-form input {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #0d0f13;
+    color: var(--text);
+    padding: 10px 12px;
+}
+
+.calorie-estimate-status {
+    margin: 0;
+    padding: 10px 12px;
+    border: 1px solid rgba(78, 216, 143, 0.35);
+    border-radius: 8px;
+    background: rgba(78, 216, 143, 0.08);
+    color: var(--text);
+    font-size: 13px;
+    line-height: 1.45;
+}
+
+.calorie-ai-tools {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.calorie-ai-form {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #0d0f13;
+}
+
+.calorie-ai-form label {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.calorie-ai-form textarea,
+.calorie-ai-form input[type="file"] {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #090b0f;
+    color: var(--text);
+    padding: 10px 12px;
+}
+
+.calorie-entry-list {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.calorie-entry-list li {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #0d0f13;
+}
+
+.calorie-entry-list span {
+    color: var(--muted);
 }
 
 .meal-tips-heading {
@@ -1252,6 +1411,9 @@ main {
 
     .two-fields,
     .strava-total-grid,
+    .calorie-total-grid,
+    .calorie-entry-form,
+    .calorie-ai-tools,
     .step-list div,
     .editable-week-day,
     .week-day {

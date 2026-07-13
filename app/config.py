@@ -56,9 +56,9 @@ TRACKS: dict[str, dict[str, Any]] = {
         ],
         "accent": "start",
         "subcategories": {
-            "strength": "Bodyweight training, simple home sessions, and gentle strength work to get started.",
-            "mixed": "Walks, mobility, and short sessions that fit a new routine.",
-            "cardio": "Easy cardio sessions with a clear starting level and focus on consistency.",
+            "start-with-gym": "Easy gym-based workouts with machines, light weights, and walking on recovery days.",
+            "start-without-gym": "Simple home and outdoor workouts with no equipment, plus walking as active rest.",
+            "lose-weight": "Low-impact training, walking, and nutrition support for steady weight loss.",
         },
     },
 }
@@ -68,10 +68,17 @@ SUBCATEGORY_NAMES = {
     "strength": "Strength",
     "mixed": "Mixed",
     "cardio": "Cardio",
+    "start-with-gym": "Start training with gym",
+    "start-without-gym": "Start training without gym",
+    "lose-weight": "Lose weight",
 }
 
 SUBCATEGORY_ALIASES = {
     "styrka": "strength",
     "blandat": "mixed",
     "kondition": "cardio",
+    "gym": "start-with-gym",
+    "without-gym": "start-without-gym",
+    "no-gym": "start-without-gym",
+    "weight-loss": "lose-weight",
 }

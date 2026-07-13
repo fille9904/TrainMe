@@ -6,11 +6,13 @@ import sqlite3
 import sys
 import time
 from http import cookies
+from email.parser import BytesParser
+from email.policy import default
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import parse_qs, unquote, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlparse
 
 
 if __package__ in (None, ""):
@@ -30,6 +32,8 @@ from app.config import (  # noqa: E402
     SUBCATEGORY_NAMES,
     TRACKS,
 )
+from app.calories import add_calorie_entry, render_calorie_counter, today_bounds
+from app.ai_calories import estimate_calories_from_image, estimate_calories_from_text
 from app.db import ensure_db, execute, query_one  # noqa: E402
 from app.plans import (  # noqa: E402
     archive_completed_training,
@@ -52,6 +56,7 @@ from app.security import (  # noqa: E402
 )
 from app.strava_api import (  # noqa: E402
     exchange_strava_code,
+    fetch_strava_calories_burned,
     fetch_strava_summary,
     fetch_strava_summary_html,
     get_strava_connection,
@@ -60,6 +65,11 @@ from app.strava_api import (  # noqa: E402
     strava_is_configured,
 )
 from app.utils import check_items, esc  # noqa: E402
+
+
+MAX_FORM_BYTES = 6 * 1024 * 1024
+ALLOWED_FOOD_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+DEFAULT_START_SUBCATEGORY = "start-without-gym"
 
 
 
@@ -384,6 +394,23 @@ def current_week_label() -> str:
 
 def current_weekday_label() -> str:
     return time.strftime("%A")
+
+
+def subcategory_focus_sentence(track_id: str, sub_id: str) -> str:
+    if track_id == "komma-igang":
+        labels = {
+            "start-with-gym": "easy gym workouts, enough rest, and walking as active recovery",
+            "start-without-gym": "simple no-equipment workouts, enough rest, and walking as active recovery",
+            "lose-weight": "low-impact workouts, weight-loss habits, and walking as active recovery",
+        }
+        return labels.get(sub_id, "easy workouts and walking as active recovery")
+    return (
+        "strength training"
+        if sub_id == "strength"
+        else "both strength training and running"
+        if sub_id == "mixed"
+        else "running and cardio"
+    )
 
 
 
@@ -773,18 +800,21 @@ def ai_page(user: sqlite3.Row, chat_question: str | None = None, chat_answer: st
     return page("AI coach | TrainMe", body, user)
 
 
-def subcategory_page(track_id: str, sub_id: str, user: sqlite3.Row | None, recipe_variant: int = 0) -> bytes:
+def subcategory_page(track_id: str, sub_id: str, user: sqlite3.Row | None, recipe_variant: int = 0, calorie_message: str = "") -> bytes:
     track = TRACKS[track_id]
     sub_name = SUBCATEGORY_NAMES[sub_id]
     plan = subcategory_training_plan(sub_id, track["name"])
     focus_points = subcategory_focus_points(sub_id)
     week_label = current_week_label()
     weekday_label = current_weekday_label()
+    calorie_counter = ""
 
     if user:
         plan_html = render_editable_subcategory_plan(get_subcategory_plan(user, track_id, sub_id), csrf_input(user))
         profile_summary = user_profile_summary(user)
         strava_summary, strava_html, strava_error = fetch_strava_summary_html(user["id"])
+        strava_burned, _ = fetch_strava_calories_burned(user["id"], *today_bounds())
+        calorie_counter = render_calorie_counter(user["id"], csrf_input(user), strava_burned, f"/spar/{track_id}/{sub_id}", calorie_message)
         if strava_html:
             strava_block = strava_html
             strava_status = "Strava is connected and can be used as input."
@@ -810,6 +840,13 @@ def subcategory_page(track_id: str, sub_id: str, user: sqlite3.Row | None, recip
         strava_block = '<p>Create an account to connect Strava and get personal suggestions.</p><a class="text-link" href="/registrera">Create account</a>'
         strava_status = "An account is required for Strava and AI."
         chat_block = '<p>The chat becomes available when you create an account.</p><a class="primary-button compact" href="/registrera">Create account</a>'
+        calorie_counter = """
+        <div class="calorie-counter">
+            <h3>Daily calorie counter</h3>
+            <p>Create an account to log food calories, estimate intake with AI, and combine it with calories burned from Strava.</p>
+            <a class="primary-button compact" href="/registrera">Create account</a>
+        </div>
+        """
 
     body = f"""
     <section class="page-hero {track["accent"]}">
@@ -827,7 +864,7 @@ def subcategory_page(track_id: str, sub_id: str, user: sqlite3.Row | None, recip
                     <small>{esc(weekday_label)}</small>
                 </div>
             </div>
-            <p>{esc(sub_name)} focuses on {'strength training' if sub_id == 'strength' else 'both strength training and running' if sub_id == 'mixed' else 'running and cardio'}.</p>
+            <p>{esc(sub_name)} focuses on {esc(subcategory_focus_sentence(track_id, sub_id))}.</p>
             <form class="plan-refresh-form" method="post" action="/subcategory-plan/regenerate">
                 {csrf_input(user)}
                 <input type="hidden" name="track_id" value="{esc(track_id)}">
@@ -840,6 +877,7 @@ def subcategory_page(track_id: str, sub_id: str, user: sqlite3.Row | None, recip
             <p class="eyebrow">Focus</p>
             <h2>{esc(sub_name)} priorities</h2>
             <ul class="check-list">{check_items(focus_points)}</ul>
+            {calorie_counter}
             {render_nutrition_tips(track_id, recipe_variant, bool(user), f"/spar/{track_id}/{sub_id}?recipes={recipe_variant}", csrf_input(user))}
         </article>
         <article class="coach-panel chat-panel">
@@ -1126,6 +1164,15 @@ class TrainMeHandler(BaseHTTPRequestHandler):
         elif parsed.path == "/profile/weight":
             user = self.current_user()
             self.redirect("/registrera") if not user else self.save_weight(user) if self.valid_post_user(user) else self.send_error(403, "Invalid CSRF token")
+        elif parsed.path == "/calories/add":
+            user = self.current_user()
+            self.redirect("/registrera") if not user else self.save_calories(user) if self.valid_post_user(user) else self.send_error(403, "Invalid CSRF token")
+        elif parsed.path == "/calories/estimate-text":
+            user = self.current_user()
+            self.redirect("/registrera") if not user else self.estimate_text_calories(user) if self.valid_post_user(user) else self.send_error(403, "Invalid CSRF token")
+        elif parsed.path == "/calories/estimate-photo":
+            user = self.current_user()
+            self.redirect("/registrera") if not user else self.estimate_photo_calories(user) if self.valid_post_user(user) else self.send_error(403, "Invalid CSRF token")
         else:
             self.redirect("/")
 
@@ -1147,7 +1194,8 @@ class TrainMeHandler(BaseHTTPRequestHandler):
                 recipe_variant = int(query.get("recipes", ["0"])[0])
             except ValueError:
                 recipe_variant = 0
-        self.send_html(subcategory_page(track_id, sub_id, user, recipe_variant))
+        calorie_message = query.get("calorie_message", [""])[0] if query else ""
+        self.send_html(subcategory_page(track_id, sub_id, user, recipe_variant, calorie_message))
 
     def register(self) -> None:
         form = self.form_data()
@@ -1347,6 +1395,69 @@ class TrainMeHandler(BaseHTTPRequestHandler):
 
         self.redirect("/profile#profile-data")
 
+    def save_calories(self, user: sqlite3.Row) -> None:
+        form = self.form_data()
+        return_to = form.get("return_to", f"/spar/komma-igang/{DEFAULT_START_SUBCATEGORY}").strip() or f"/spar/komma-igang/{DEFAULT_START_SUBCATEGORY}"
+        if not return_to.startswith("/") or return_to.startswith("//"):
+            return_to = f"/spar/komma-igang/{DEFAULT_START_SUBCATEGORY}"
+        label = form.get("label", "").strip() or "Meal"
+        try:
+            calories = int(float(form.get("calories", "")))
+        except ValueError:
+            self.redirect(return_to)
+            return
+
+        if not 1 <= calories <= 5000:
+            self.redirect(return_to)
+            return
+
+        add_calorie_entry(user["id"], label, calories)
+        self.redirect(return_to)
+
+    def calorie_return_to(self, form: dict[str, str]) -> str:
+        return_to = form.get("return_to", "/spar/aktiv/strength").strip() or "/spar/aktiv/strength"
+        if not return_to.startswith("/") or return_to.startswith("//"):
+            return_to = "/spar/aktiv/strength"
+        return return_to
+
+    def redirect_with_calorie_message(self, return_to: str, message: str) -> None:
+        separator = "&" if "?" in return_to else "?"
+        self.redirect(f"{return_to}{separator}calorie_message={quote(message[:220])}")
+
+    def estimate_text_calories(self, user: sqlite3.Row) -> None:
+        form = self.form_data()
+        return_to = self.calorie_return_to(form)
+        description = form.get("description", "").strip()
+        calories, note = estimate_calories_from_text(description)
+        if calories:
+            add_calorie_entry(user["id"], f"AI estimate: {description[:60] or 'meal'}", calories)
+            self.redirect_with_calorie_message(return_to, f"Added {calories} kcal. {note}")
+            return
+        self.redirect_with_calorie_message(return_to, note)
+
+    def estimate_photo_calories(self, user: sqlite3.Row) -> None:
+        form = self.form_data()
+        return_to = self.calorie_return_to(form)
+        upload = self.uploaded_files().get("food_photo")
+        if not upload or not upload.get("content"):
+            self.redirect_with_calorie_message(return_to, "Upload a food photo first.")
+            return
+        content_type = upload.get("content_type", "")
+        content = upload["content"]
+        if content_type not in ALLOWED_FOOD_IMAGE_TYPES:
+            self.redirect_with_calorie_message(return_to, "Use a JPEG, PNG, or WebP food photo.")
+            return
+        if len(content) > MAX_FORM_BYTES:
+            self.redirect_with_calorie_message(return_to, "The food photo is too large. Use an image under 6 MB.")
+            return
+
+        calories, note = estimate_calories_from_image(content, content_type)
+        if calories:
+            add_calorie_entry(user["id"], "AI photo estimate", calories)
+            self.redirect_with_calorie_message(return_to, f"Added {calories} kcal from the photo. {note}")
+            return
+        self.redirect_with_calorie_message(return_to, note)
+
     def strava_connect(self, user: sqlite3.Row) -> None:
         config_error = strava_config_error()
         if config_error:
@@ -1419,9 +1530,45 @@ class TrainMeHandler(BaseHTTPRequestHandler):
         if hasattr(self, "_cached_form_data"):
             return self._cached_form_data
         length = int(self.headers.get("Content-Length", "0"))
-        body = self.rfile.read(length).decode("utf-8")
-        self._cached_form_data = {key: values[0] for key, values in parse_qs(body).items()}
+        if length > MAX_FORM_BYTES:
+            self._cached_form_data = {}
+            self._cached_uploaded_files = {}
+            return self._cached_form_data
+        body = self.rfile.read(length)
+        content_type = self.headers.get("Content-Type", "")
+        if content_type.startswith("multipart/form-data"):
+            self._cached_form_data, self._cached_uploaded_files = self.parse_multipart_form(body, content_type)
+            return self._cached_form_data
+
+        self._cached_uploaded_files = {}
+        self._cached_form_data = {key: values[0] for key, values in parse_qs(body.decode("utf-8")).items()}
         return self._cached_form_data
+
+    def uploaded_files(self) -> dict[str, dict[str, Any]]:
+        if not hasattr(self, "_cached_form_data"):
+            self.form_data()
+        return getattr(self, "_cached_uploaded_files", {})
+
+    def parse_multipart_form(self, body: bytes, content_type: str) -> tuple[dict[str, str], dict[str, dict[str, Any]]]:
+        parser_input = b"Content-Type: " + content_type.encode("utf-8") + b"\r\nMIME-Version: 1.0\r\n\r\n" + body
+        message = BytesParser(policy=default).parsebytes(parser_input)
+        fields: dict[str, str] = {}
+        files: dict[str, dict[str, Any]] = {}
+        for part in message.iter_parts():
+            name = part.get_param("name", header="content-disposition")
+            if not name:
+                continue
+            payload = part.get_payload(decode=True) or b""
+            filename = part.get_filename()
+            if filename:
+                files[name] = {
+                    "filename": filename,
+                    "content_type": part.get_content_type(),
+                    "content": payload,
+                }
+            else:
+                fields[name] = payload.decode(part.get_content_charset() or "utf-8", errors="replace")
+        return fields, files
 
     def serve_static(self, path: str) -> None:
         requested = (STATIC_DIR / path.removeprefix("/static/")).resolve()

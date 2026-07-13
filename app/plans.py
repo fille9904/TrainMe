@@ -23,6 +23,17 @@ def weekly_training_plan(user: sqlite3.Row, track_id: str, strava_summary: str |
     goal = (user["goal"] or "").lower()
     has_strava = bool(strava_summary)
 
+    if track_id == "komma-igang":
+        return [
+            ("Monday", "10,000 steps at an easy pace. Split it into 2-3 walks if needed."),
+            ("Tuesday", "Beginner full-body strength 25-35 min: sit-to-stand, wall push-ups, rows, and core."),
+            ("Wednesday", "10,000 steps at an easy pace. Keep it comfortable and steady."),
+            ("Thursday", "Gentle mobility and balance 25 min plus simple stretching."),
+            ("Friday", "10,000 steps. Add short hills only if it still feels easy."),
+            ("Saturday", "Beginner cardio 25-35 min: bike, easy jog/walk intervals, or swimming."),
+            ("Sunday", "10,000 steps and a simple meal-prep check for the next week."),
+        ]
+
     if track_id != "atlet":
         return [
             ("Monday", "Full-body strength 45 min with controlled progression."),
@@ -39,23 +50,23 @@ def weekly_training_plan(user: sqlite3.Row, track_id: str, strava_summary: str |
     strength_bias = any(word in goal for word in ["strong", "strength", "muscle", "explosive"])
 
     if endurance_bias:
-        quality = "Intervals 6 x 3 min with 2 min easy between, guided by daily readiness."
-        long_session = "Langpass 70-100 min lugnt. Avsluta strongt om kroppen svarar bra."
+        quality = "High-quality intervals: 8 x 3 min hard with 2 min easy, plus drills and cooldown."
+        long_session = "Long endurance session 90-120 min easy with the final 15 min controlled if recovery is good."
     elif strength_bias:
-        quality = "Explosive strength: squats/deadlifts 5 x 3, jumps or sprint technique, long rest."
-        long_session = "Cardio 45-60 min easy for aerobic base and recovery."
+        quality = "Max-strength session: squat or deadlift 6 x 3, explosive jumps, loaded carries, and trunk work."
+        long_session = "Aerobic base 60-75 min easy, then mobility for hips, ankles, and T-spine."
     else:
-        quality = "Quality session: threshold or tempo 3 x 8 min with controlled effort."
-        long_session = "Longer endurance session 60-90 min in an easy zone."
+        quality = "Threshold session: 4 x 8 min at controlled hard effort with 3 min easy between."
+        long_session = "Long endurance session 90 min easy plus 6 relaxed strides."
 
     return [
-        ("Monday", f"Lower-body strength and core 50 min, {intensity_note}."),
+        ("Monday", f"Heavy lower-body strength 70 min: squat/deadlift focus, unilateral work, and core, {intensity_note}."),
         ("Tuesday", quality),
-        ("Wednesday", "Active recovery: 30 min very easy plus mobility."),
-        ("Thursday", "Upper-body strength and injury prevention: pull, press, rear shoulder, hip stability."),
-        ("Friday", "Short technique session or fartlek 35-45 min. Stop if the legs feel heavy."),
+        ("Wednesday", "Active recovery workout: 35-45 min zone 1-2 plus 25 min mobility and prehab."),
+        ("Thursday", "Upper-body power and hypertrophy 65 min: pull, press, loaded carries, rear shoulder, hip stability."),
+        ("Friday", "Speed and technique: drills, 8-10 short hill sprints or strides, and easy aerobic volume."),
         ("Saturday", long_session),
-        ("Sunday", "Rest, meal planning, and weekly review in the AI chat."),
+        ("Sunday", "Recovery session: 30-40 min easy movement, mobility, meal planning, and weekly review."),
     ]
 
 
@@ -92,6 +103,69 @@ def tutorial_url(session: str) -> str:
 
 
 def subcategory_training_plan(sub_id: str, track_name: str) -> list[tuple[str, str]]:
+    normalized_track = track_name.lower()
+    if "getting" in normalized_track:
+        if sub_id == "start-with-gym":
+            return [
+                ("Monday", "Easy gym orientation 30-35 min: treadmill walk, leg press, chest press, seated row, and gentle stretching."),
+                ("Tuesday", "Active rest exercise: 10,000 steps at an easy pace, split into shorter walks if needed."),
+                ("Wednesday", "Beginner gym strength 30 min: leg curl, lat pulldown, shoulder press, bodyweight box squat, and dead bug."),
+                ("Thursday", "Active rest exercise: 10,000 steps and 5-10 min relaxed mobility."),
+                ("Friday", "Easy gym circuit 30-35 min: bike warm-up, machines for full body, light core, and long rests."),
+                ("Saturday", "Active rest exercise: 10,000 steps at a comfortable conversational pace."),
+                ("Sunday", "Active rest exercise: 10,000 steps plus simple meal planning for the next week."),
+            ]
+        if sub_id == "start-without-gym":
+            return [
+                ("Monday", "Home starter workout 25-30 min: sit-to-stand, wall push-ups, glute bridges, bird dog, and stretching."),
+                ("Tuesday", "Active rest exercise: 10,000 steps at an easy pace, broken into short walks if needed."),
+                ("Wednesday", "No-equipment strength 25 min: step-ups, incline push-ups, hip hinge practice, side plank, and mobility."),
+                ("Thursday", "Active rest exercise: 10,000 steps and 5 min gentle stretching."),
+                ("Friday", "Easy home circuit 25-30 min: chair squats, wall push-ups, calf raises, dead bug, and relaxed breathing."),
+                ("Saturday", "Active rest exercise: 10,000 steps at a comfortable pace."),
+                ("Sunday", "Active rest exercise: 10,000 steps plus a short reflection on energy, sleep, and food choices."),
+            ]
+        return [
+            ("Monday", "Low-impact weight-loss workout 25-30 min: brisk walk warm-up, chair squats, wall push-ups, step-ups, and core."),
+            ("Tuesday", "Active rest exercise: 10,000 steps at a comfortable pace and simple hydration focus."),
+            ("Wednesday", "Easy cardio 25-35 min: bike, swim, elliptical, or walk intervals with no hard efforts."),
+            ("Thursday", "Active rest exercise: 10,000 steps plus 5-10 min stretching."),
+            ("Friday", "Gentle strength and mobility 25 min: glute bridges, band or towel rows, dead bug, balance, and hips."),
+            ("Saturday", "Active rest exercise: 10,000 steps. Keep the pace easy enough to recover."),
+            ("Sunday", "Active rest exercise: 10,000 steps plus meal prep for protein, vegetables, and regular meals."),
+        ]
+
+    if "athlete" in normalized_track:
+        if sub_id == "strength":
+            return [
+                ("Monday", "Heavy lower body 75 min: squat or trap-bar deadlift 6 x 3, split squats, hamstrings, calves, and core."),
+                ("Tuesday", "Speed and plyometrics 45 min: sprint drills, jumps, bounds, and mobility."),
+                ("Wednesday", "Upper-body power 65 min: weighted pull, press, rows, carries, rear shoulder, and trunk rotation."),
+                ("Thursday", "Aerobic recovery 45 min zone 2 plus hips, ankles, and T-spine mobility."),
+                ("Friday", "Full-body strength 70 min: deadlift or squat variation, Olympic-lift pattern, push, pull, and loaded carries."),
+                ("Saturday", "Conditioning finisher: sled pushes, hill sprints, or assault bike intervals plus prehab."),
+                ("Sunday", "Recovery workout 35 min easy movement, mobility, and readiness review."),
+            ]
+        if sub_id == "mixed":
+            return [
+                ("Monday", "Strength power session 70 min: heavy lower body, jumps, core, and loaded carries."),
+                ("Tuesday", "Quality run or bike intervals: 8 x 3 min hard with controlled recovery."),
+                ("Wednesday", "Upper-body strength 60 min plus mobility and prehab."),
+                ("Thursday", "Tempo cardio 45-60 min with 20-30 min steady hard effort."),
+                ("Friday", "Full-body athletic circuit: strength, agility, short sprints, and trunk stability."),
+                ("Saturday", "Long aerobic session 90-120 min easy, adjusted by Strava load."),
+                ("Sunday", "Recovery workout: easy movement, mobility, soft-tissue work, and weekly review."),
+            ]
+        return [
+            ("Monday", "Aerobic base 60 min zone 2 plus 6 strides and mobility."),
+            ("Tuesday", "VO2 intervals: 6-8 x 3 min hard with 2 min easy recovery."),
+            ("Wednesday", "Strength for endurance 45 min: calves, hamstrings, hips, single-leg work, and core."),
+            ("Thursday", "Threshold session: 3-4 x 8 min controlled hard effort with easy recovery."),
+            ("Friday", "Recovery run or bike 40-50 min very easy plus mobility."),
+            ("Saturday", "Long endurance session 90-120 min easy, with fueling practice."),
+            ("Sunday", "Technique and recovery: drills, 30 min easy, stretching, and Strava review."),
+        ]
+
     if sub_id == "strength":
         return [
             ("Monday", "Heavy lower body: squat or leg press, hip-dominant movement, and core."),
@@ -124,6 +198,24 @@ def subcategory_training_plan(sub_id: str, track_name: str) -> list[tuple[str, s
 
 
 def subcategory_focus_points(sub_id: str) -> list[str]:
+    if sub_id == "start-with-gym":
+        return [
+            "Easy machine-based workouts that build confidence in the gym.",
+            "Enough rest between exercises so the body can handle the routine.",
+            "Walking is the active rest exercise on non-gym days.",
+        ]
+    if sub_id == "start-without-gym":
+        return [
+            "Simple home and outdoor workouts that are doable without equipment.",
+            "Low pressure progression with rest and short sessions.",
+            "Walking is used as active recovery so rest days still support the habit.",
+        ]
+    if sub_id == "lose-weight":
+        return [
+            "Low-impact workouts that support consistency and weight loss.",
+            "Walking on recovery days to increase daily movement without hard training.",
+            "Nutrition habits that are simple enough to repeat.",
+        ]
     if sub_id == "strength":
         return [
             "Progressive load in foundational strength exercises.",
