@@ -1,525 +1,67 @@
 ﻿from __future__ import annotations
 
-import hashlib
-import html
-import json
 import os
 import secrets
 import sqlite3
+import sys
 import time
 from http import cookies
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
-from urllib.parse import parse_qs, unquote, urlencode, urlparse
-from urllib.request import Request, urlopen
+from urllib.parse import parse_qs, unquote, urlparse
+
+
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+
+# Core configuration, persistence, security, and API helpers live in separate modules.
+
+# Core concerns are implemented in separate modules. These assignments keep the
+# existing page-rendering code stable while moving app behavior out of main.py.
+from app.config import (  # noqa: E402
+    BASE_DIR,
+    DB_PATH,
+    SESSION_MAX_AGE,
+    STATIC_DIR,
+    SUBCATEGORY_ALIASES,
+    SUBCATEGORY_NAMES,
+    TRACKS,
+)
+from app.db import ensure_db, execute, query_one  # noqa: E402
+from app.plans import (  # noqa: E402
+    archive_completed_training,
+    rotate_plan,
+    subcategory_focus_points,
+    subcategory_training_plan,
+    tutorial_url,
+    user_profile_summary,
+    weekly_training_plan,
+)
+from app.recipes import nutrition_tips_for_track, recipe_search_url, recipe_source_links  # noqa: E402
+from app.security import (  # noqa: E402
+    create_session,
+    csrf_input,
+    delete_session,
+    get_session,
+    hash_password,
+    valid_csrf,
+    verify_password,
+)
+from app.strava_api import (  # noqa: E402
+    exchange_strava_code,
+    fetch_strava_summary,
+    fetch_strava_summary_html,
+    get_strava_connection,
+    strava_authorize_url,
+    strava_config_error,
+    strava_is_configured,
+)
+from app.utils import check_items, esc  # noqa: E402
 
 
-BASE_DIR = Path(__file__).resolve().parent.parent
-DB_PATH = Path(os.environ.get("TRAINME_DB_PATH", BASE_DIR / "trainme.db"))
-STATIC_DIR = BASE_DIR / "app" / "static"
-STRAVA_AUTHORIZE_URL = "https://www.strava.com/oauth/authorize"
-STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token"
-STRAVA_API_BASE = "https://www.strava.com/api/v3"
-STRAVA_REDIRECT_URI = os.environ.get("STRAVA_REDIRECT_URI", "http://127.0.0.1:8000/strava/callback")
-SESSION_MAX_AGE = 60 * 60 * 24 * 30
-
-
-TRACKS: dict[str, dict[str, Any]] = {
-    "atlet": {
-        "name": "Athlete",
-        "tagline": "For users who want to improve performance and make smarter decisions from training data.",
-        "focus": [
-            "Performance analysis using Strava data",
-            "AI tips for load, recovery, and progression",
-            "Suggestions for training formats that build capacity",
-        ],
-        "accent": "performance",
-        "subcategories": {
-            "strength": "Explosiveness, max strength, and supporting sessions for athletic performance.",
-            "mixed": "Periodized weeks with technique, mobility, recovery, and quality sessions.",
-            "cardio": "Intervals, distance, zones, and Strava-based fitness tracking.",
-        },
-    },
-    "aktiv": {
-        "name": "Active",
-        "tagline": "For users who train regularly and want to stay healthy, strong, and energized.",
-        "focus": [
-            "General training tips for a sustainable routine",
-            "Nutrition advice for energy, stamina, and recovery",
-            "Balance between strength, cardio, and rest",
-        ],
-        "accent": "active",
-        "subcategories": {
-            "strength": "Safe basic exercises, smart progression, and routines that last.",
-            "mixed": "Weekly plans with strength, mobility, walks, cycling, or group training.",
-            "cardio": "Cardio sessions for heart health, energy, and better everyday recovery.",
-        },
-    },
-    "komma-igang": {
-        "name": "Getting started",
-        "tagline": "For users who want to start gently, build habits, and get extra nutrition support.",
-        "focus": [
-            "General movement that is easy to start with",
-            "Strong focus on simple nutrition habits",
-            "Small steps that build confidence",
-        ],
-        "accent": "start",
-        "subcategories": {
-            "strength": "Bodyweight training, simple home sessions, and gentle strength work to get started.",
-            "mixed": "Walks, mobility, and short sessions that fit a new routine.",
-            "cardio": "Easy cardio sessions with a clear starting level and focus on consistency.",
-        },
-    },
-}
-
-
-SUBCATEGORY_NAMES = {
-    "strength": "Strength",
-    "mixed": "Mixed",
-    "cardio": "Cardio",
-}
-
-SUBCATEGORY_ALIASES = {
-    "styrka": "strength",
-    "blandat": "mixed",
-    "kondition": "cardio",
-}
-
-
-def ensure_db() -> None:
-    with sqlite3.connect(DB_PATH) as db:
-        db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY,
-                username VARCHAR UNIQUE,
-                email VARCHAR UNIQUE,
-                password VARCHAR,
-                category VARCHAR,
-                height FLOAT,
-                weight FLOAT,
-                goal VARCHAR
-            )
-            """
-        )
-        user_columns = {row[1] for row in db.execute("PRAGMA table_info(users)").fetchall()}
-        if "csrf_token" not in user_columns:
-            db.execute("ALTER TABLE users ADD COLUMN csrf_token VARCHAR")
-        db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS strava_connections (
-                user_id INTEGER PRIMARY KEY,
-                athlete_id INTEGER,
-                athlete_name VARCHAR,
-                scope VARCHAR,
-                access_token VARCHAR,
-                refresh_token VARCHAR,
-                expires_at INTEGER,
-                updated_at INTEGER,
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            )
-            """
-        )
-        db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS training_plan_items (
-                id INTEGER PRIMARY KEY,
-                user_id INTEGER,
-                day_index INTEGER,
-                day_name VARCHAR,
-                session TEXT,
-                is_done INTEGER DEFAULT 0,
-                comment TEXT,
-                updated_at INTEGER,
-                UNIQUE(user_id, day_index),
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            )
-            """
-        )
-        db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS subcategory_plan_items (
-                id INTEGER PRIMARY KEY,
-                user_id INTEGER,
-                track_id VARCHAR,
-                subcategory_id VARCHAR,
-                day_index INTEGER,
-                day_name VARCHAR,
-                session TEXT,
-                is_done INTEGER DEFAULT 0,
-                comment TEXT,
-                updated_at INTEGER,
-                UNIQUE(user_id, track_id, subcategory_id, day_index),
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            )
-            """
-        )
-        db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS training_archive (
-                id INTEGER PRIMARY KEY,
-                user_id INTEGER,
-                source VARCHAR,
-                track_id VARCHAR,
-                subcategory_id VARCHAR,
-                day_name VARCHAR,
-                session TEXT,
-                comment TEXT,
-                completed_at INTEGER,
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            )
-            """
-        )
-        db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS saved_recipes (
-                id INTEGER PRIMARY KEY,
-                user_id INTEGER,
-                track_id VARCHAR,
-                title VARCHAR,
-                reason TEXT,
-                url TEXT,
-                saved_at INTEGER,
-                UNIQUE(user_id, url),
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            )
-            """
-        )
-        db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS weight_entries (
-                id INTEGER PRIMARY KEY,
-                user_id INTEGER,
-                weight FLOAT,
-                recorded_at INTEGER,
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            )
-            """
-        )
-        db.execute(
-            """
-            CREATE TABLE IF NOT EXISTS sessions (
-                token VARCHAR PRIMARY KEY,
-                user_id INTEGER,
-                csrf_token VARCHAR,
-                strava_state VARCHAR,
-                created_at INTEGER,
-                expires_at INTEGER,
-                FOREIGN KEY(user_id) REFERENCES users(id)
-            )
-            """
-        )
-        for row in db.execute("SELECT id FROM users WHERE csrf_token IS NULL OR csrf_token = ''").fetchall():
-            db.execute("UPDATE users SET csrf_token = ? WHERE id = ?", (secrets.token_urlsafe(32), row[0]))
-
-
-def query_one(sql: str, params: tuple[Any, ...]) -> sqlite3.Row | None:
-    with sqlite3.connect(DB_PATH) as db:
-        db.row_factory = sqlite3.Row
-        return db.execute(sql, params).fetchone()
-
-
-def execute(sql: str, params: tuple[Any, ...]) -> None:
-    with sqlite3.connect(DB_PATH) as db:
-        db.execute(sql, params)
-
-
-def create_session(user_id: int) -> str:
-    token = secrets.token_urlsafe(32)
-    now = int(time.time())
-    with sqlite3.connect(DB_PATH) as db:
-        user = db.execute("SELECT csrf_token FROM users WHERE id = ?", (user_id,)).fetchone()
-        csrf_token = user[0] if user and user[0] else secrets.token_urlsafe(32)
-        if not user or not user[0]:
-            db.execute("UPDATE users SET csrf_token = ? WHERE id = ?", (csrf_token, user_id))
-        db.execute(
-            """
-            INSERT INTO sessions (token, user_id, csrf_token, created_at, expires_at)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (token, user_id, csrf_token, now, now + SESSION_MAX_AGE),
-        )
-    return token
-
-
-def get_session(token: str | None) -> sqlite3.Row | None:
-    if not token:
-        return None
-    with sqlite3.connect(DB_PATH) as db:
-        db.row_factory = sqlite3.Row
-        session = db.execute("SELECT * FROM sessions WHERE token = ?", (token,)).fetchone()
-    if not session or int(session["expires_at"] or 0) < int(time.time()):
-        if session:
-            delete_session(token)
-        return None
-    return session
-
-
-def delete_session(token: str | None) -> None:
-    if token:
-        execute("DELETE FROM sessions WHERE token = ?", (token,))
-
-
-def csrf_input(user: sqlite3.Row | None) -> str:
-    if not user:
-        return ""
-    return f'<input type="hidden" name="csrf_token" value="{esc(user["csrf_token"] or "")}">'
-
-
-def valid_csrf(user: sqlite3.Row | None, form: dict[str, str]) -> bool:
-    if not user:
-        return False
-    return secrets.compare_digest(form.get("csrf_token", ""), user["csrf_token"] or "")
-
-
-def strava_client_id() -> str:
-    return os.environ.get("STRAVA_CLIENT_ID", "").strip()
-
-
-def strava_client_secret() -> str:
-    return os.environ.get("STRAVA_CLIENT_SECRET", "").strip()
-
-
-def strava_is_configured() -> bool:
-    return bool(strava_client_id() and strava_client_secret())
-
-
-def strava_config_error() -> str | None:
-    client_id = strava_client_id()
-    if not client_id or not strava_client_secret():
-        return "Strava API keys are missing. Add STRAVA_CLIENT_ID and STRAVA_CLIENT_SECRET."
-    if not client_id.isdigit():
-        return "STRAVA_CLIENT_ID must be the numbers from the Strava Client ID field, not the Client Secret or app name."
-    return None
-
-
-def get_strava_connection(user_id: int) -> sqlite3.Row | None:
-    return query_one("SELECT * FROM strava_connections WHERE user_id = ?", (user_id,))
-
-
-def strava_authorize_url(user_id: int, state: str) -> str:
-    params = {
-        "client_id": strava_client_id(),
-        "redirect_uri": STRAVA_REDIRECT_URI,
-        "response_type": "code",
-        "approval_prompt": "auto",
-        "scope": "read,activity:read",
-        "state": state,
-    }
-    return f"{STRAVA_AUTHORIZE_URL}?{urlencode(params)}"
-
-
-def post_form_json(url: str, payload: dict[str, Any]) -> dict[str, Any]:
-    body = urlencode(payload).encode("utf-8")
-    request = Request(url, data=body, method="POST")
-    request.add_header("Content-Type", "application/x-www-form-urlencoded")
-    with urlopen(request, timeout=15) as response:
-        return json.loads(response.read().decode("utf-8"))
-
-
-def get_json(url: str, access_token: str) -> Any:
-    request = Request(url, method="GET")
-    request.add_header("Authorization", f"Bearer {access_token}")
-    with urlopen(request, timeout=15) as response:
-        return json.loads(response.read().decode("utf-8"))
-
-
-def save_strava_tokens(user_id: int, token_data: dict[str, Any], scope: str) -> None:
-    athlete = token_data.get("athlete") or {}
-    athlete_name = " ".join(
-        part for part in [athlete.get("firstname"), athlete.get("lastname")] if part
-    ) or athlete.get("username") or "Strava athlete"
-    execute(
-        """
-        INSERT INTO strava_connections (
-            user_id, athlete_id, athlete_name, scope, access_token, refresh_token, expires_at, updated_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ON CONFLICT(user_id) DO UPDATE SET
-            athlete_id = excluded.athlete_id,
-            athlete_name = excluded.athlete_name,
-            scope = excluded.scope,
-            access_token = excluded.access_token,
-            refresh_token = excluded.refresh_token,
-            expires_at = excluded.expires_at,
-            updated_at = excluded.updated_at
-        """,
-        (
-            user_id,
-            athlete.get("id"),
-            athlete_name,
-            scope,
-            token_data.get("access_token"),
-            token_data.get("refresh_token"),
-            token_data.get("expires_at"),
-            int(time.time()),
-        ),
-    )
-
-
-def exchange_strava_code(user_id: int, code: str, scope: str) -> None:
-    token_data = post_form_json(
-        STRAVA_TOKEN_URL,
-        {
-            "client_id": strava_client_id(),
-            "client_secret": strava_client_secret(),
-            "code": code,
-            "grant_type": "authorization_code",
-        },
-    )
-    save_strava_tokens(user_id, token_data, scope)
-
-
-def refresh_strava_connection(connection: sqlite3.Row) -> sqlite3.Row:
-    if int(connection["expires_at"] or 0) > int(time.time()) + 300:
-        return connection
-
-    token_data = post_form_json(
-        STRAVA_TOKEN_URL,
-        {
-            "client_id": strava_client_id(),
-            "client_secret": strava_client_secret(),
-            "grant_type": "refresh_token",
-            "refresh_token": connection["refresh_token"],
-        },
-    )
-    execute(
-        """
-        UPDATE strava_connections
-        SET access_token = ?, refresh_token = ?, expires_at = ?, updated_at = ?
-        WHERE user_id = ?
-        """,
-        (
-            token_data.get("access_token"),
-            token_data.get("refresh_token"),
-            token_data.get("expires_at"),
-            int(time.time()),
-            connection["user_id"],
-        ),
-    )
-    refreshed = get_strava_connection(connection["user_id"])
-    if not refreshed:
-        raise RuntimeError("The Strava connection could not be refreshed.")
-    return refreshed
-
-
-def fetch_strava_summary(user_id: int) -> tuple[str | None, str | None]:
-    connection = get_strava_connection(user_id)
-    if not connection:
-        return None, None
-
-    try:
-        connection = refresh_strava_connection(connection)
-        activities = get_json(f"{STRAVA_API_BASE}/athlete/activities?per_page=10", connection["access_token"])
-    except (HTTPError, URLError, TimeoutError, RuntimeError) as exc:
-        return None, f"Could not fetch Strava data right now: {exc}"
-
-    if not activities:
-        return "Strava is connected, but no activities were found yet.", None
-
-    total_distance_km = sum(float(activity.get("distance") or 0) for activity in activities) / 1000
-    total_seconds = sum(float(activity.get("moving_time") or 0) for activity in activities)
-    sport_counts: dict[str, int] = {}
-    latest_lines = []
-
-    for activity in activities[:5]:
-        sport = activity.get("sport_type") or activity.get("type") or "Activeitet"
-        sport_counts[sport] = sport_counts.get(sport, 0) + 1
-        distance_km = float(activity.get("distance") or 0) / 1000
-        minutes = int(float(activity.get("moving_time") or 0) / 60)
-        latest_lines.append(f"{sport}: {distance_km:.1f} km, {minutes} min")
-
-    sports = ", ".join(f"{name} x{count}" for name, count in sorted(sport_counts.items()))
-    hours = total_seconds / 3600
-    summary = (
-        f"Strava is connected to {connection['athlete_name']}. "
-        f"Latest {len(activities)} sessions: {total_distance_km:.1f} km and {hours:.1f} total hours. "
-        f"Training types: {sports}. Latest sessions: {' | '.join(latest_lines)}."
-    )
-    return summary, None
-
-
-def fetch_strava_summary_html(user_id: int) -> tuple[str | None, str | None, str | None]:
-    connection = get_strava_connection(user_id)
-    if not connection:
-        return None, None, None
-
-    try:
-        connection = refresh_strava_connection(connection)
-        activities = get_json(f"{STRAVA_API_BASE}/athlete/activities?per_page=10", connection["access_token"])
-    except (HTTPError, URLError, TimeoutError, RuntimeError) as exc:
-        return None, None, f"Could not fetch Strava data right now: {exc}"
-
-    if not activities:
-        empty = "Strava is connected, but no activities were found yet."
-        return empty, f"<p>{esc(empty)}</p>", None
-
-    total_distance_km = sum(float(activity.get("distance") or 0) for activity in activities) / 1000
-    total_seconds = sum(float(activity.get("moving_time") or 0) for activity in activities)
-    total_hours = total_seconds / 3600
-    rows = []
-    summary_lines = []
-
-    for index, activity in enumerate(activities[:10], start=1):
-        name = activity.get("name") or "Session"
-        sport = activity.get("sport_type") or activity.get("type") or "Activeitet"
-        distance_km = float(activity.get("distance") or 0) / 1000
-        minutes = int(float(activity.get("moving_time") or 0) / 60)
-        date = str(activity.get("start_date_local") or activity.get("start_date") or "")[:10]
-        elevation = float(activity.get("total_elevation_gain") or 0)
-        average_speed = float(activity.get("average_speed") or 0) * 3.6
-        rows.append(
-            f"""
-            <li>
-                <strong>{esc(index)}. {esc(name)}</strong>
-                <span>{esc(date)} Â· {esc(sport)} Â· {distance_km:.1f} km Â· {minutes} min Â· {elevation:.0f} m stigning Â· {average_speed:.1f} km/h snitt</span>
-            </li>
-            """
-        )
-        summary_lines.append(f"{sport}: {distance_km:.1f} km, {minutes} min")
-
-    summary = (
-        f"Strava is connected to {connection['athlete_name']}. "
-        f"Latest {len(activities[:10])} sessions: {total_distance_km:.1f} km and {total_hours:.1f} total hours. "
-        f"Session: {' | '.join(summary_lines)}."
-    )
-    html_block = f"""
-    <div class="strava-summary">
-        <div class="strava-total-grid">
-            <div><span>{len(activities[:10])}</span><p>latest sessions</p></div>
-            <div><span>{total_distance_km:.1f}</span><p>totalt km</p></div>
-            <div><span>{total_hours:.1f}</span><p>totalt timmar</p></div>
-        </div>
-        <ul class="strava-activity-list">{''.join(rows)}</ul>
-    </div>
-    """
-    return summary, html_block, None
-
-
-def hash_password(password: str) -> str:
-    salt = secrets.token_hex(16)
-    digest = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 120_000)
-    return f"{salt}${digest.hex()}"
-
-
-def verify_password(password: str, stored_password: str | None) -> bool:
-    if not stored_password:
-        return False
-    if "$" not in stored_password:
-        return secrets.compare_digest(password, stored_password)
-    salt, digest = stored_password.split("$", 1)
-    candidate = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 120_000)
-    return secrets.compare_digest(candidate.hex(), digest)
-
-
-def esc(value: Any) -> str:
-    return html.escape(str(value), quote=True)
-
-
-def check_items(items: list[str]) -> str:
-    return "".join(f"<li>{esc(item)}</li>" for item in items)
 
 
 def header(user: sqlite3.Row | None) -> str:
@@ -751,56 +293,6 @@ def login_page(user: sqlite3.Row | None, error: bool = False) -> bytes:
     return page("Log in | TrainMe", body, user)
 
 
-def user_profile_summary(user: sqlite3.Row) -> str:
-    parts = [f"Name: {user['username']}", f"Track: {user['category'] or 'aktiv'}"]
-    if user["height"]:
-        parts.append(f"Langd: {user['height']} cm")
-    if user["weight"]:
-        parts.append(f"Weight: {user['weight']} kg")
-    if user["goal"]:
-        parts.append(f"Goal: {user['goal']}")
-    return ". ".join(parts)
-
-
-def weekly_training_plan(user: sqlite3.Row, track_id: str, strava_summary: str | None) -> list[tuple[str, str]]:
-    goal = (user["goal"] or "").lower()
-    has_strava = bool(strava_summary)
-
-    if track_id != "atlet":
-        return [
-            ("Monday", "Full-body strength 45 min with controlled progression."),
-            ("Tuesday", "Easy cardio 30-45 min at conversational pace."),
-            ("Wednesday", "Mobility and recovery 20 min."),
-            ("Thursday", "Mixed session with strength, balance, and a short pulse finisher."),
-            ("Friday", "Rest or walk."),
-            ("Saturday", "Longer optional activity 45-75 min."),
-            ("Sunday", "Plan the week and keep nutrition simple."),
-        ]
-
-    intensity_note = "based on Strava history" if has_strava else "at a starting level until Strava is connected"
-    endurance_bias = any(word in goal for word in ["run", "race", "cardio", "bike", "10 km", "marathon"])
-    strength_bias = any(word in goal for word in ["strong", "strength", "muscle", "explosive"])
-
-    if endurance_bias:
-        quality = "Intervals 6 x 3 min with 2 min easy between, guided by daily readiness."
-        long_session = "Langpass 70-100 min lugnt. Avsluta strongt om kroppen svarar bra."
-    elif strength_bias:
-        quality = "Explosive strength: squats/deadlifts 5 x 3, jumps or sprint technique, long rest."
-        long_session = "Cardio 45-60 min easy for aerobic base and recovery."
-    else:
-        quality = "Quality session: threshold or tempo 3 x 8 min with controlled effort."
-        long_session = "Longer endurance session 60-90 min in an easy zone."
-
-    return [
-        ("Monday", f"Lower-body strength and core 50 min, {intensity_note}."),
-        ("Tuesday", quality),
-        ("Wednesday", "Active recovery: 30 min very easy plus mobility."),
-        ("Thursday", "Upper-body strength and injury prevention: pull, press, rear shoulder, hip stability."),
-        ("Friday", "Short technique session or fartlek 35-45 min. Stop if the legs feel heavy."),
-        ("Saturday", long_session),
-        ("Sunday", "Rest, meal planning, and weekly review in the AI chat."),
-    ]
-
 
 def render_weekly_plan(plan: list[tuple[str, str]]) -> str:
     return "".join(
@@ -816,283 +308,6 @@ def render_weekly_plan(plan: list[tuple[str, str]]) -> str:
         for day, session in plan
     )
 
-
-def tutorial_query(session: str) -> str:
-    text = session.lower()
-    matches = [
-        (("squat",), "how to squat proper form tutorial"),
-        (("leg press",), "how to leg press proper form tutorial"),
-        (("deadlift", "hip-dominant", "posterior chain"), "how to deadlift proper form tutorial"),
-        (("press", "pull", "upper-body", "upper body"), "upper body press and pull workout tutorial"),
-        (("lower-body", "lower body"), "lower body strength workout tutorial"),
-        (("full-body", "full body"), "full body strength workout tutorial"),
-        (("core", "stability"), "core stability exercises tutorial"),
-        (("calves", "hamstrings", "hips"), "runner strength exercises tutorial"),
-        (("mobility", "recovery"), "mobility routine tutorial"),
-        (("interval", "fartlek"), "running intervals workout tutorial"),
-        (("tempo", "threshold"), "tempo run workout tutorial"),
-        (("long run", "distance run", "easy run", "cardio"), "running form tutorial"),
-        (("walk",), "proper walking exercise tutorial"),
-        (("cycling",), "cycling workout tutorial"),
-        (("circuit",), "circuit training workout tutorial"),
-        (("sprint", "jumps"), "sprint technique and jump training tutorial"),
-    ]
-    for keywords, query in matches:
-        if any(keyword in text for keyword in keywords):
-            return query
-    return f"{session} exercise tutorial"
-
-
-def tutorial_url(session: str) -> str:
-    return "https://www.google.com/search?" + urlencode(
-        {"btnI": "1", "q": f"site:youtube.com/watch {tutorial_query(session)}"}
-    )
-
-
-def subcategory_training_plan(sub_id: str, track_name: str) -> list[tuple[str, str]]:
-    if sub_id == "strength":
-        return [
-            ("Monday", "Heavy lower body: squat or leg press, hip-dominant movement, and core."),
-            ("Tuesday", "Mobility, easy walk, and recovery."),
-            ("Wednesday", "Upper body: press, pull, shoulder stability, and controlled volume."),
-            ("Thursday", "Rest or low-load technique training."),
-            ("Friday", "Full-body strength: 4-6 basic exercises with clear progression."),
-            ("Saturday", "Accessory strength: posterior chain, calves, grip, and injury prevention."),
-            ("Sunday", "Evaluate weights, reps, energy, and plan next week."),
-        ]
-    if sub_id == "mixed":
-        return [
-            ("Monday", "Full-body strength 45-60 min focused on basic lifts."),
-            ("Tuesday", "Easy run 30-45 min at conversational pace."),
-            ("Wednesday", "Mobility, core, and active recovery."),
-            ("Thursday", "Lower-body strength plus a short conditioning finisher."),
-            ("Friday", "Intervals or fartlek 25-40 min depending on daily readiness."),
-            ("Saturday", "Optional mixed session: circuit strength, cycling, jogging, or group training."),
-            ("Sunday", "Rest and comment on what worked best."),
-        ]
-    return [
-        ("Monday", "Easy distance run 35-50 min with controlled heart rate."),
-        ("Tuesday", "Strength for runners: calves, hamstrings, hips, and core 30 min."),
-        ("Wednesday", "Intervals: 6 x 2-3 min with easy jog recovery."),
-        ("Thursday", "Rest or walk and mobility."),
-        ("Friday", "Tempo session 20-30 min at steady effort."),
-        ("Saturday", "Easy long run, build volume without chasing pace."),
-        ("Sunday", "Recovery and analysis of distance, time, and feel."),
-    ]
-
-
-def subcategory_focus_points(sub_id: str) -> list[str]:
-    if sub_id == "strength":
-        return [
-            "Progressive load in foundational strength exercises.",
-            "Technique, stability, and enough rest between heavy sessions.",
-            "Comments on every session to track weights, reps, and readiness.",
-        ]
-    if sub_id == "mixed":
-        return [
-            "Balance between strength training and running.",
-            "Enough variation without making the week scattered.",
-            "Comments that capture energy, load, and what should be prioritized.",
-        ]
-    return [
-        "Running with clear structure: easy, quality, and long runs.",
-        "Strava data as input for distance, time, and load.",
-        "Comments after sessions to guide next week's volume.",
-    ]
-
-
-def nutrition_tips_for_track(track_id: str, variant: int = 0) -> list[tuple[str, str, str]]:
-    recipe_sets = {
-        "atlet": [
-            [
-                (
-                    "Chicken with rice or quinoa",
-                    "Protein and carbohydrates for muscle growth, hard sessions, and recovery.",
-                    "https://www.ica.se/recept/?q=chicken%20quinoa",
-                ),
-                (
-                    "Salmon with potatoes and vegetables",
-                    "Healthy fats, protein, and energy for performance-focused training.",
-                    "https://www.ica.se/recept/?q=salmon%20potatoes%20vegetables",
-                ),
-                (
-                    "Greek yogurt or overnight oats with berries",
-                    "Convenient breakfast or evening meal with protein and slow carbohydrates.",
-                    "https://www.ica.se/recept/?q=overnight%20oats%20berries",
-                ),
-                (
-                    "Turkey pasta with spinach",
-                    "A high-energy meal that supports heavy strength blocks and recovery.",
-                    "https://www.ica.se/recept/?q=turkey%20pasta%20spinach",
-                ),
-                (
-                    "Tuna rice bowl with avocado",
-                    "Fast protein, carbohydrates, and fats for users training often.",
-                    "https://www.ica.se/recept/?q=tuna%20rice%20bowl",
-                ),
-            ],
-            [
-                (
-                    "Beef stir-fry with noodles",
-                    "Iron, protein, and carbohydrates for performance and adaptation.",
-                    "https://www.ica.se/recept/?q=beef%20stir%20fry%20noodles",
-                ),
-                (
-                    "Protein pancakes with cottage cheese",
-                    "Easy extra calories and protein when the goal is to build more.",
-                    "https://www.ica.se/recept/?q=protein%20pancakes%20cottage%20cheese",
-                ),
-                (
-                    "Chicken burrito bowl",
-                    "A simple way to combine protein, rice, beans, and vegetables.",
-                    "https://www.ica.se/recept/?q=chicken%20burrito%20bowl",
-                ),
-                (
-                    "Prawn omelet with sourdough toast",
-                    "Protein-rich meal with enough energy for a demanding week.",
-                    "https://www.ica.se/recept/?q=prawn%20omelet",
-                ),
-                (
-                    "Cottage cheese smoothie bowl",
-                    "Useful snack after training when appetite is low.",
-                    "https://www.ica.se/recept/?q=cottage%20cheese%20smoothie%20bowl",
-                ),
-            ],
-        ],
-        "komma-igang": [
-            [
-                (
-                    "Lentil soup with vegetables",
-                    "A filling meal with fiber and low energy density.",
-                    "https://www.ica.se/recept/?q=lentil%20soup%20vegetables",
-                ),
-                (
-                    "Chicken salad with hearty vegetables",
-                    "Easy to portion and good for users who want to lose weight.",
-                    "https://www.ica.se/recept/?q=chicken%20salad",
-                ),
-                (
-                    "Cod with vegetables and potatoes",
-                    "Lean protein with a simple everyday base.",
-                    "https://www.ica.se/recept/?q=cod%20vegetables%20potatoes",
-                ),
-                (
-                    "Vegetable omelet with cottage cheese",
-                    "Quick, filling, and protein-rich without being complicated.",
-                    "https://www.ica.se/recept/?q=vegetable%20omelet%20cottage%20cheese",
-                ),
-                (
-                    "Turkey lettuce wraps",
-                    "Light meal with plenty of protein and crunchy vegetables.",
-                    "https://www.ica.se/recept/?q=turkey%20lettuce%20wraps",
-                ),
-            ],
-            [
-                (
-                    "Bean chili with salad",
-                    "Fiber and protein that make it easier to stay full.",
-                    "https://www.ica.se/recept/?q=bean%20chili%20salad",
-                ),
-                (
-                    "Shrimp bowl with cauliflower rice",
-                    "Light but satisfying meal with lean protein.",
-                    "https://www.ica.se/recept/?q=shrimp%20cauliflower%20rice",
-                ),
-                (
-                    "Chicken vegetable tray bake",
-                    "Simple portions and easy leftovers for the next day.",
-                    "https://www.ica.se/recept/?q=chicken%20vegetable%20tray%20bake",
-                ),
-                (
-                    "Greek salad with grilled chicken",
-                    "Fresh, protein-forward meal for a calorie-aware routine.",
-                    "https://www.ica.se/recept/?q=greek%20salad%20chicken",
-                ),
-                (
-                    "Skyr with berries and nuts",
-                    "Simple breakfast or snack with protein and controlled portions.",
-                    "https://www.ica.se/recept/?q=skyr%20berries%20nuts",
-                ),
-            ],
-        ],
-        "aktiv": [
-            [
-                (
-                    "Omelet with vegetables",
-                    "Quick protein-rich meal for everyday recovery.",
-                    "https://www.ica.se/recept/?q=omelet%20vegetables",
-                ),
-                (
-                    "Salmon or chicken with roasted root vegetables",
-                    "Balanced plate for energy, health, and regular training.",
-                    "https://www.ica.se/recept/?q=salmon%20root%20vegetables",
-                ),
-                (
-                    "Vegetarian bean stew",
-                    "Fiber, protein, and solid everyday food for an active lifestyle.",
-                    "https://www.ica.se/recept/?q=vegetarian%20bean%20stew",
-                ),
-                (
-                    "Chicken pita with yogurt sauce",
-                    "Balanced everyday meal with protein, vegetables, and carbohydrates.",
-                    "https://www.ica.se/recept/?q=chicken%20pita%20yogurt%20sauce",
-                ),
-                (
-                    "Tofu noodle bowl",
-                    "Plant-based meal with energy for mixed training.",
-                    "https://www.ica.se/recept/?q=tofu%20noodle%20bowl",
-                ),
-            ],
-            [
-                (
-                    "Turkey meatballs with tomato sauce",
-                    "A practical protein-rich dinner for regular training weeks.",
-                    "https://www.ica.se/recept/?q=turkey%20meatballs%20tomato",
-                ),
-                (
-                    "Halloumi salad with quinoa",
-                    "Good mix of protein, texture, and slow carbohydrates.",
-                    "https://www.ica.se/recept/?q=halloumi%20salad%20quinoa",
-                ),
-                (
-                    "Chicken noodle soup",
-                    "Light, warm meal that supports recovery and routine.",
-                    "https://www.ica.se/recept/?q=chicken%20noodle%20soup",
-                ),
-                (
-                    "Egg and avocado toast",
-                    "Fast meal with protein and healthy fats.",
-                    "https://www.ica.se/recept/?q=egg%20avocado%20toast",
-                ),
-                (
-                    "Chickpea curry with rice",
-                    "Fiber, steady energy, and easy leftovers.",
-                    "https://www.ica.se/recept/?q=chickpea%20curry%20rice",
-                ),
-            ],
-        ],
-    }
-    variants = recipe_sets.get(track_id, recipe_sets["aktiv"])
-    return variants[variant % len(variants)]
-
-
-def recipe_search_url(title: str) -> str:
-    return "https://www.google.com/search?" + urlencode({"btnI": "1", "q": f"{title} recipe"})
-
-
-def recipe_site_result_url(title: str, site: str) -> str:
-    return "https://www.google.com/search?" + urlencode({"btnI": "1", "q": f"site:{site} {title} recipe"})
-
-
-def recipe_source_links(title: str, primary_url: str) -> list[tuple[str, str]]:
-    return [
-        ("Best match", recipe_search_url(title)),
-        ("Primary source", primary_url),
-        ("ICA", recipe_site_result_url(title, "ica.se/recept")),
-        ("Koket", recipe_site_result_url(title, "koket.se")),
-        ("Allrecipes", recipe_site_result_url(title, "allrecipes.com")),
-        ("BBC Good Food", recipe_site_result_url(title, "bbcgoodfood.com")),
-    ]
 
 
 def render_nutrition_tips(
@@ -1170,18 +385,6 @@ def current_week_label() -> str:
 def current_weekday_label() -> str:
     return time.strftime("%A")
 
-
-def rotate_plan(plan: list[tuple[str, str]], seed: int) -> list[tuple[str, str]]:
-    variants = [
-        "AI-adjusted focus: keep quality high but stop if you feel unusually heavy.",
-        "New variation: put extra emphasis on technique and even load.",
-        "AI-generated variation: prioritize recovery between hard elements.",
-        "Updated type: note heart rate, energy, and a comment after the session.",
-    ]
-    return [
-        (day, f"{session} {variants[(index + seed) % len(variants)]}")
-        for index, (day, session) in enumerate(plan)
-    ]
 
 
 def regenerate_ai_training_plan(user: sqlite3.Row, strava_summary: str | None) -> None:
@@ -1295,25 +498,6 @@ def render_editable_weekly_plan(items: list[sqlite3.Row], csrf_html: str = "") -
         )
     return "".join(cards)
 
-
-def archive_completed_training(
-    user_id: int,
-    source: str,
-    track_id: str,
-    subcategory_id: str | None,
-    day_name: str,
-    session: str,
-    comment: str,
-) -> None:
-    execute(
-        """
-        INSERT INTO training_archive (
-            user_id, source, track_id, subcategory_id, day_name, session, comment, completed_at
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """,
-        (user_id, source, track_id, subcategory_id, day_name, session, comment, int(time.time())),
-    )
 
 
 def render_weight_progress(weight_entries: list[sqlite3.Row]) -> str:
@@ -2285,4 +1469,8 @@ def run() -> None:
 
 if __name__ == "__main__":
     run()
+
+
+
+
 
