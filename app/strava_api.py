@@ -263,4 +263,4 @@ def fetch_strava_calories_burned(user_id: int, start_ts: int | None = None, end_
     if start_ts is not None and end_ts is not None:
         activities = [activity for activity in activities or [] if activity_started_between(activity, start_ts, end_ts)]
     total_calories = sum(float(activity.get("calories") or 0) for activity in activities or [])
-    return int(total_calories) if total_calories else None, None
+    return int(total_calories), None

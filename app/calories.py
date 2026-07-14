@@ -50,7 +50,8 @@ def render_calorie_counter(
 ) -> str:
     entries = get_today_calorie_entries(user_id)
     consumed = sum(int(entry["calories"] or 0) for entry in entries)
-    burned = int(strava_burned or 0)
+    has_strava_burn = strava_burned is not None
+    burned = int(strava_burned) if has_strava_burn else 0
     remaining = DEFAULT_DAILY_CALORIE_TARGET - consumed + burned
     progress = min(int((consumed / DEFAULT_DAILY_CALORIE_TARGET) * 100), 100)
     entry_rows = []
@@ -65,7 +66,12 @@ def render_calorie_counter(
             """
         )
     history = "".join(entry_rows) if entry_rows else "<li><span>No food calories logged today.</span></li>"
-    burned_label = f"{burned} kcal" if burned else "Connect Strava"
+    burned_label = f"{burned} kcal" if has_strava_burn else "Connect Strava"
+    strava_note = (
+        "Synced from today's Strava activities."
+        if has_strava_burn
+        else "Connect Strava to fill this data point automatically."
+    )
     status = f'<p class="calorie-estimate-status">{esc(message)}</p>' if message else ""
     return f"""
     <div class="calorie-counter">
@@ -85,6 +91,20 @@ def render_calorie_counter(
             <div><span>{consumed}</span><p>eaten today</p></div>
             <div><span>{burned_label}</span><p>burned from Strava today</p></div>
             <div><span>{remaining}</span><p>remaining estimate</p></div>
+        </div>
+        <div class="calorie-tabs">
+            <input id="calorie-tab-intake-{user_id}" name="calorie-tabs-{user_id}" type="radio" checked>
+            <label for="calorie-tab-intake-{user_id}">Intake</label>
+            <input id="calorie-tab-strava-{user_id}" name="calorie-tabs-{user_id}" type="radio">
+            <label for="calorie-tab-strava-{user_id}">Strava burn</label>
+            <div class="calorie-tab-panel calorie-tab-intake">
+                <strong>{consumed} kcal eaten today</strong>
+                <span>Food entries reset at midnight.</span>
+            </div>
+            <div class="calorie-tab-panel calorie-tab-strava">
+                <strong>{burned_label}</strong>
+                <span>{esc(strava_note)}</span>
+            </div>
         </div>
         {status}
         <form class="calorie-entry-form" method="post" action="/calories/add">
