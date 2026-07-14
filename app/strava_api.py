@@ -241,11 +241,12 @@ def fetch_strava_summary_html(user_id: int) -> tuple[str | None, str | None, str
         distance_km = float(activity.get("distance") or 0) / 1000
         moving_seconds = float(activity.get("moving_time") or 0)
         minutes = int(moving_seconds / 60)
-        calories = int(float(activity.get("calories") or 0))
+        raw_calories = activity.get("calories")
+        calories = int(float(raw_calories or 0))
         start = (activity.get("start_date_local") or activity.get("start_date") or "")[:10]
         pace = format_pace(float(activity.get("distance") or 0), moving_seconds)
         speed = format_speed(float(activity.get("distance") or 0), moving_seconds)
-        calories_text = f" - {calories} kcal" if calories else ""
+        calories_text = f" - {calories} kcal burned" if raw_calories is not None else " - kcal burned unavailable"
         summary_lines.append(activity_metric_line(activity))
         rows.append(
             f"""
