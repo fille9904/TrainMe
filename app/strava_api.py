@@ -100,6 +100,30 @@ def activity_metric_line(activity: dict[str, Any]) -> str:
     return f"{name} ({sport}): {distance_km:.1f} km, {minutes} min, tempo {pace}, average speed {speed}{kcal_text}{kcal_rate}"
 
 
+def fetch_recent_activities(connection: sqlite3.Row, per_page: int = 10) -> list[dict[str, Any]]:
+    activities = get_json(f"{STRAVA_API_BASE}/athlete/activities?per_page={per_page}", connection["access_token"])
+    if not activities:
+        return []
+
+    detailed_activities: list[dict[str, Any]] = []
+    for activity in activities[:per_page]:
+        activity_id = activity.get("id")
+        if not activity_id:
+            detailed_activities.append(activity)
+            continue
+        try:
+            detailed = get_json(
+                f"{STRAVA_API_BASE}/activities/{activity_id}?include_all_efforts=false",
+                connection["access_token"],
+            )
+        except (HTTPError, URLError, TimeoutError, RuntimeError):
+            detailed_activities.append(activity)
+            continue
+        merged = {**activity, **(detailed or {})}
+        detailed_activities.append(merged)
+    return detailed_activities
+
+
 def save_strava_tokens(user_id: int, token_data: dict[str, Any], scope: str) -> None:
     athlete = token_data.get("athlete") or {}
     athlete_name = " ".join(
@@ -186,7 +210,7 @@ def fetch_strava_summary(user_id: int) -> tuple[str | None, str | None]:
 
     try:
         connection = refresh_strava_connection(connection)
-        activities = get_json(f"{STRAVA_API_BASE}/athlete/activities?per_page=10", connection["access_token"])
+        activities = fetch_recent_activities(connection)
     except (HTTPError, URLError, TimeoutError, RuntimeError) as exc:
         return None, f"Could not fetch Strava data right now: {exc}"
 
@@ -223,7 +247,7 @@ def fetch_strava_summary_html(user_id: int) -> tuple[str | None, str | None, str
 
     try:
         connection = refresh_strava_connection(connection)
-        activities = get_json(f"{STRAVA_API_BASE}/athlete/activities?per_page=10", connection["access_token"])
+        activities = fetch_recent_activities(connection)
     except (HTTPError, URLError, TimeoutError, RuntimeError) as exc:
         return None, None, f"Could not fetch Strava data right now: {exc}"
 
@@ -295,12 +319,27 @@ def fetch_strava_calories_burned(user_id: int, start_ts: int | None = None, end_
 
     try:
         connection = refresh_strava_connection(connection)
-        query = {"per_page": 30}
+        query = {"per_page": 10}
         if start_ts is not None:
             query["after"] = start_ts
         if end_ts is not None:
             query["before"] = end_ts
         activities = get_json(f"{STRAVA_API_BASE}/athlete/activities?{urlencode(query)}", connection["access_token"])
+        detailed_activities = []
+        for activity in activities or []:
+            activity_id = activity.get("id")
+            if not activity_id:
+                detailed_activities.append(activity)
+                continue
+            try:
+                detailed = get_json(
+                    f"{STRAVA_API_BASE}/activities/{activity_id}?include_all_efforts=false",
+                    connection["access_token"],
+                )
+            except (HTTPError, URLError, TimeoutError, RuntimeError):
+                detailed = {}
+            detailed_activities.append({**activity, **(detailed or {})})
+        activities = detailed_activities
     except (HTTPError, URLError, TimeoutError, RuntimeError) as exc:
         return None, f"Could not fetch Strava calories right now: {exc}"
 
