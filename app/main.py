@@ -676,8 +676,21 @@ def coach_reply(user: sqlite3.Row, question: str, strava_summary: str | None) ->
         return "Write a question about the weekly plan, recovery, nutrition, or how to interpret Strava data."
 
     goal = user["goal"] or "your goal"
+    lower_question = question.lower()
+    metric_question = any(
+        word in lower_question
+        for word in ["tempo", "pace", "speed", "kcal", "calorie", "calories", "burned", "strava"]
+    )
+    if metric_question and strava_summary:
+        return (
+            "I can use your Strava tempo and kcal data as training-load signals. "
+            f"Here is what I see: {strava_summary} "
+            "Faster tempo with high kcal burned usually means a harder session, so keep the next hard workout separated by recovery or an easy walk. "
+            "If tempo is improving at the same effort and kcal/hour is stable, that suggests better efficiency."
+        )
+
     data_hint = (
-        "I use the Strava summary as load input and adjust volume gradually."
+        "I use the Strava summary, including tempo/pace and kcal burned, as load input and adjust volume gradually."
         if strava_summary
         else "Connect Strava so I can account for your actual training history."
     )

@@ -66,6 +66,40 @@ def get_json(url: str, access_token: str) -> Any:
         return json.loads(response.read().decode("utf-8"))
 
 
+def format_pace(distance_m: float, moving_seconds: float) -> str:
+    if distance_m <= 0 or moving_seconds <= 0:
+        return "tempo unavailable"
+    seconds_per_km = moving_seconds / (distance_m / 1000)
+    minutes = int(seconds_per_km // 60)
+    seconds = int(round(seconds_per_km % 60))
+    if seconds == 60:
+        minutes += 1
+        seconds = 0
+    return f"{minutes}:{seconds:02d} min/km"
+
+
+def format_speed(distance_m: float, moving_seconds: float) -> str:
+    if distance_m <= 0 or moving_seconds <= 0:
+        return "speed unavailable"
+    return f"{distance_m / 1000 / (moving_seconds / 3600):.1f} km/h"
+
+
+def activity_metric_line(activity: dict[str, Any]) -> str:
+    sport = activity.get("sport_type") or activity.get("type") or "Activity"
+    name = activity.get("name") or sport
+    distance_m = float(activity.get("distance") or 0)
+    moving_seconds = float(activity.get("moving_time") or 0)
+    calories = int(float(activity.get("calories") or 0))
+    distance_km = distance_m / 1000
+    minutes = int(moving_seconds / 60)
+    pace = format_pace(distance_m, moving_seconds)
+    speed = format_speed(distance_m, moving_seconds)
+    kcal_per_hour = int(round(calories / (moving_seconds / 3600))) if calories and moving_seconds else 0
+    kcal_text = f", {calories} kcal burned" if calories else ", kcal burned unavailable"
+    kcal_rate = f", {kcal_per_hour} kcal/hour" if kcal_per_hour else ""
+    return f"{name} ({sport}): {distance_km:.1f} km, {minutes} min, tempo {pace}, average speed {speed}{kcal_text}{kcal_rate}"
+
+
 def save_strava_tokens(user_id: int, token_data: dict[str, Any], scope: str) -> None:
     athlete = token_data.get("athlete") or {}
     athlete_name = " ".join(
@@ -170,9 +204,14 @@ def fetch_strava_summary(user_id: int) -> tuple[str | None, str | None]:
     sports = ", ".join(f"{count} {sport}" for sport, count in sorted(sport_counts.items()))
     distance_km = total_distance_m / 1000
     hours = total_seconds / 3600
+    average_pace = format_pace(total_distance_m, total_seconds)
+    average_speed = format_speed(total_distance_m, total_seconds)
+    activity_lines = " | ".join(activity_metric_line(activity) for activity in activities[:10])
     return (
         f"Latest 10 Strava sessions: {sports}. Total: {distance_km:.1f} km, {hours:.1f} hours"
-        f"{f', and {total_calories:.0f} calories burned' if total_calories else ''}.",
+        f"{f', and {total_calories:.0f} kcal/calories burned' if total_calories else ''}. "
+        f"Average tempo/pace: {average_pace}; average speed: {average_speed}. "
+        f"Workout data points for AI analysis: {activity_lines}.",
         None,
     )
 
@@ -200,24 +239,28 @@ def fetch_strava_summary_html(user_id: int) -> tuple[str | None, str | None, str
         sport = activity.get("sport_type") or activity.get("type") or "Activity"
         name = activity.get("name") or sport
         distance_km = float(activity.get("distance") or 0) / 1000
-        minutes = int(float(activity.get("moving_time") or 0) / 60)
+        moving_seconds = float(activity.get("moving_time") or 0)
+        minutes = int(moving_seconds / 60)
         calories = int(float(activity.get("calories") or 0))
         start = (activity.get("start_date_local") or activity.get("start_date") or "")[:10]
+        pace = format_pace(float(activity.get("distance") or 0), moving_seconds)
+        speed = format_speed(float(activity.get("distance") or 0), moving_seconds)
         calories_text = f" - {calories} kcal" if calories else ""
-        summary_lines.append(f"{sport}: {distance_km:.1f} km, {minutes} min{calories_text}")
+        summary_lines.append(activity_metric_line(activity))
         rows.append(
             f"""
             <li>
                 <strong>{esc(name)}</strong>
-                <span>{esc(start)} - {esc(sport)} - {distance_km:.1f} km - {minutes} min{esc(calories_text)}</span>
+                <span>{esc(start)} - {esc(sport)} - {distance_km:.1f} km - {minutes} min - tempo {esc(pace)} - avg speed {esc(speed)}{esc(calories_text)}</span>
             </li>
             """
         )
 
     summary = (
         f"Latest 10 Strava sessions. Total: {total_distance_m / 1000:.1f} km, {total_seconds / 3600:.1f} hours"
-        f"{f', and {total_calories:.0f} calories burned' if total_calories else ''}. "
-        f"Session: {' | '.join(summary_lines)}."
+        f"{f', and {total_calories:.0f} kcal/calories burned' if total_calories else ''}. "
+        f"Average tempo/pace: {format_pace(total_distance_m, total_seconds)}; average speed: {format_speed(total_distance_m, total_seconds)}. "
+        f"Workout data points for AI analysis: {' | '.join(summary_lines)}."
     )
     html_block = f"""
     <div class="strava-summary">
