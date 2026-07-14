@@ -14,6 +14,8 @@ Athlete and Active use strength, mixed, and cardio subcategories. Getting starte
 
 Visitors can use the site without an account, but AI help, saved training data, calorie history, and Strava-based insights are locked behind an account.
 
+TrainMe uses SQLite locally by default. In production, set `DATABASE_URL` to a Postgres database URL, for example from Supabase, so accounts and saved data survive deploys.
+
 ## Run locally
 
 ```powershell
@@ -36,9 +38,10 @@ The included `render.yaml` is set up for Render's free web service:
    - `plan: free`
    - `python app/main.py` as the start command
    - `HOST=0.0.0.0`
-   - `TRAINME_DB_PATH=/tmp/trainme.db`
+   - `TRAINME_DB_PATH=/tmp/trainme.db` as a fallback when no Postgres URL is set
    - `/` as the health check path
 6. Add these environment variables in Render:
+   - `DATABASE_URL`
    - `STRAVA_CLIENT_ID`
    - `STRAVA_CLIENT_SECRET`
    - `STRAVA_REDIRECT_URI`
@@ -53,9 +56,28 @@ https://your-trainme-site.onrender.com/strava/callback
 
 After deployment, the site stays online from Render's server even when your computer is turned off.
 
-### Free plan data warning
+### Supabase Postgres for persistent logins
 
-The free Render setup uses `/tmp/trainme.db`, which is temporary storage. This is fine for testing the site online, but accounts, saved sessions, calories, and Strava connections can disappear after restarts or redeploys.
+Use Supabase if you want the free Render web service but persistent users and logins:
+
+1. Go to `https://supabase.com`.
+2. Create a free project.
+3. Open **Project Settings** -> **Database**.
+4. Copy the connection string for Postgres. Use the URI format if Supabase offers choices.
+5. In Render, open the TrainMe service -> **Environment**.
+6. Add:
+
+```text
+DATABASE_URL=postgresql://...
+```
+
+7. Redeploy the Render service.
+
+When `DATABASE_URL` is set, TrainMe creates its tables in Postgres automatically at startup and stops relying on temporary SQLite storage.
+
+### Free plan data warning without Supabase
+
+If `DATABASE_URL` is not set, the free Render setup uses `/tmp/trainme.db`, which is temporary storage. This is fine for testing the site online, but accounts, saved sessions, calories, and Strava connections can disappear after restarts or redeploys.
 
 For real users, switch to one of these later:
 

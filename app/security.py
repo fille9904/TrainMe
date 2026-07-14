@@ -5,8 +5,8 @@ import secrets
 import sqlite3
 import time
 
-from app.config import DB_PATH, SESSION_MAX_AGE
-from app.db import execute
+from app.config import SESSION_MAX_AGE
+from app.db import execute, query_one
 from app.utils import esc
 
 
@@ -29,27 +29,24 @@ def verify_password(password: str, stored_password: str | None) -> bool:
 def create_session(user_id: int) -> str:
     token = secrets.token_urlsafe(32)
     now = int(time.time())
-    with sqlite3.connect(DB_PATH) as db:
-        user = db.execute("SELECT csrf_token FROM users WHERE id = ?", (user_id,)).fetchone()
-        csrf_token = user[0] if user and user[0] else secrets.token_urlsafe(32)
-        if not user or not user[0]:
-            db.execute("UPDATE users SET csrf_token = ? WHERE id = ?", (csrf_token, user_id))
-        db.execute(
-            """
-            INSERT INTO sessions (token, user_id, csrf_token, created_at, expires_at)
-            VALUES (?, ?, ?, ?, ?)
-            """,
-            (token, user_id, csrf_token, now, now + SESSION_MAX_AGE),
-        )
+    user = query_one("SELECT csrf_token FROM users WHERE id = ?", (user_id,))
+    csrf_token = user["csrf_token"] if user and user["csrf_token"] else secrets.token_urlsafe(32)
+    if not user or not user["csrf_token"]:
+        execute("UPDATE users SET csrf_token = ? WHERE id = ?", (csrf_token, user_id))
+    execute(
+        """
+        INSERT INTO sessions (token, user_id, csrf_token, created_at, expires_at)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        (token, user_id, csrf_token, now, now + SESSION_MAX_AGE),
+    )
     return token
 
 
 def get_session(token: str | None) -> sqlite3.Row | None:
     if not token:
         return None
-    with sqlite3.connect(DB_PATH) as db:
-        db.row_factory = sqlite3.Row
-        session = db.execute("SELECT * FROM sessions WHERE token = ?", (token,)).fetchone()
+    session = query_one("SELECT * FROM sessions WHERE token = ?", (token,))
     if not session or int(session["expires_at"] or 0) < int(time.time()):
         if session:
             delete_session(token)

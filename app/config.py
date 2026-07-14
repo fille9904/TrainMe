@@ -7,6 +7,7 @@ from typing import Any
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 DB_PATH = Path(os.environ.get("TRAINME_DB_PATH", BASE_DIR / "trainme.db"))
+DATABASE_URL = os.environ.get("DATABASE_URL", "").strip()
 STATIC_DIR = BASE_DIR / "app" / "static"
 STRAVA_AUTHORIZE_URL = "https://www.strava.com/oauth/authorize"
 STRAVA_TOKEN_URL = "https://www.strava.com/oauth/token"

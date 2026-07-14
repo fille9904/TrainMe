@@ -24,8 +24,6 @@ if __package__ in (None, ""):
 # Core concerns are implemented in separate modules. These assignments keep the
 # existing page-rendering code stable while moving app behavior out of main.py.
 from app.config import (  # noqa: E402
-    BASE_DIR,
-    DB_PATH,
     SESSION_MAX_AGE,
     STATIC_DIR,
     SUBCATEGORY_ALIASES,
@@ -34,7 +32,8 @@ from app.config import (  # noqa: E402
 )
 from app.calories import add_calorie_entry, render_calorie_counter, today_bounds
 from app.ai_calories import estimate_calories_from_image, estimate_calories_from_text
-from app.db import ensure_db, execute, query_one  # noqa: E402
+from app.db import IntegrityError, ensure_db, execute, query_one  # noqa: E402
+from app.db import insert_and_get_id, query_all  # noqa: E402
 from app.plans import (  # noqa: E402
     archive_completed_training,
     rotate_plan,
@@ -418,43 +417,41 @@ def regenerate_ai_training_plan(user: sqlite3.Row, strava_summary: str | None) -
     track_id = user["category"] or "aktiv"
     plan = rotate_plan(weekly_training_plan(user, track_id, strava_summary), int(time.time()) % 4)
     now = int(time.time())
-    with sqlite3.connect(DB_PATH) as db:
-        for index, (day, session) in enumerate(plan):
-            db.execute(
-                """
-                INSERT INTO training_plan_items (user_id, day_index, day_name, session, is_done, comment, updated_at)
-                VALUES (?, ?, ?, ?, 0, '', ?)
-                ON CONFLICT(user_id, day_index) DO UPDATE SET
-                    day_name = excluded.day_name,
-                    session = excluded.session,
-                    is_done = 0,
-                    comment = '',
-                    updated_at = excluded.updated_at
-                """,
-                (user["id"], index, day, session, now),
-            )
+    for index, (day, session) in enumerate(plan):
+        execute(
+            """
+            INSERT INTO training_plan_items (user_id, day_index, day_name, session, is_done, comment, updated_at)
+            VALUES (?, ?, ?, ?, 0, '', ?)
+            ON CONFLICT(user_id, day_index) DO UPDATE SET
+                day_name = excluded.day_name,
+                session = excluded.session,
+                is_done = 0,
+                comment = '',
+                updated_at = excluded.updated_at
+            """,
+            (user["id"], index, day, session, now),
+        )
 
 
 def regenerate_subcategory_training_plan(user: sqlite3.Row, track_id: str, sub_id: str) -> None:
     plan = rotate_plan(subcategory_training_plan(sub_id, TRACKS[track_id]["name"]), int(time.time()) % 4)
     now = int(time.time())
-    with sqlite3.connect(DB_PATH) as db:
-        for index, (day, session) in enumerate(plan):
-            db.execute(
-                """
-                INSERT INTO subcategory_plan_items (
-                    user_id, track_id, subcategory_id, day_index, day_name, session, is_done, comment, updated_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, 0, '', ?)
-                ON CONFLICT(user_id, track_id, subcategory_id, day_index) DO UPDATE SET
-                    day_name = excluded.day_name,
-                    session = excluded.session,
-                    is_done = 0,
-                    comment = '',
-                    updated_at = excluded.updated_at
-                """,
-                (user["id"], track_id, sub_id, index, day, session, now),
+    for index, (day, session) in enumerate(plan):
+        execute(
+            """
+            INSERT INTO subcategory_plan_items (
+                user_id, track_id, subcategory_id, day_index, day_name, session, is_done, comment, updated_at
             )
+            VALUES (?, ?, ?, ?, ?, ?, 0, '', ?)
+            ON CONFLICT(user_id, track_id, subcategory_id, day_index) DO UPDATE SET
+                day_name = excluded.day_name,
+                session = excluded.session,
+                is_done = 0,
+                comment = '',
+                updated_at = excluded.updated_at
+            """,
+            (user["id"], track_id, sub_id, index, day, session, now),
+        )
 
 
 def ensure_user_training_plan(user: sqlite3.Row, track_id: str, strava_summary: str | None) -> None:
@@ -466,29 +463,26 @@ def ensure_user_training_plan(user: sqlite3.Row, track_id: str, strava_summary: 
         return
 
     now = int(time.time())
-    with sqlite3.connect(DB_PATH) as db:
-        for index, (day, session) in enumerate(weekly_training_plan(user, track_id, strava_summary)):
-            db.execute(
-                """
-                INSERT INTO training_plan_items (user_id, day_index, day_name, session, is_done, comment, updated_at)
-                VALUES (?, ?, ?, ?, 0, '', ?)
-                """,
-                (user["id"], index, day, session, now),
-            )
+    for index, (day, session) in enumerate(weekly_training_plan(user, track_id, strava_summary)):
+        execute(
+            """
+            INSERT INTO training_plan_items (user_id, day_index, day_name, session, is_done, comment, updated_at)
+            VALUES (?, ?, ?, ?, 0, '', ?)
+            """,
+            (user["id"], index, day, session, now),
+        )
 
 
 def get_user_training_plan(user: sqlite3.Row, track_id: str, strava_summary: str | None) -> list[sqlite3.Row]:
     ensure_user_training_plan(user, track_id, strava_summary)
-    with sqlite3.connect(DB_PATH) as db:
-        db.row_factory = sqlite3.Row
-        return db.execute(
-            """
-            SELECT * FROM training_plan_items
-            WHERE user_id = ?
-            ORDER BY day_index
-            """,
-            (user["id"],),
-        ).fetchall()
+    return query_all(
+        """
+        SELECT * FROM training_plan_items
+        WHERE user_id = ?
+        ORDER BY day_index
+        """,
+        (user["id"],),
+    )
 
 
 def render_editable_weekly_plan(items: list[sqlite3.Row], csrf_html: str = "") -> str:
@@ -609,31 +603,28 @@ def ensure_subcategory_plan(user: sqlite3.Row, track_id: str, sub_id: str) -> No
         return
 
     now = int(time.time())
-    with sqlite3.connect(DB_PATH) as db:
-        for index, (day, session) in enumerate(subcategory_training_plan(sub_id, TRACKS[track_id]["name"])):
-            db.execute(
-                """
-                INSERT INTO subcategory_plan_items (
-                    user_id, track_id, subcategory_id, day_index, day_name, session, is_done, comment, updated_at
-                )
-                VALUES (?, ?, ?, ?, ?, ?, 0, '', ?)
-                """,
-                (user["id"], track_id, sub_id, index, day, session, now),
+    for index, (day, session) in enumerate(subcategory_training_plan(sub_id, TRACKS[track_id]["name"])):
+        execute(
+            """
+            INSERT INTO subcategory_plan_items (
+                user_id, track_id, subcategory_id, day_index, day_name, session, is_done, comment, updated_at
             )
+            VALUES (?, ?, ?, ?, ?, ?, 0, '', ?)
+            """,
+            (user["id"], track_id, sub_id, index, day, session, now),
+        )
 
 
 def get_subcategory_plan(user: sqlite3.Row, track_id: str, sub_id: str) -> list[sqlite3.Row]:
     ensure_subcategory_plan(user, track_id, sub_id)
-    with sqlite3.connect(DB_PATH) as db:
-        db.row_factory = sqlite3.Row
-        return db.execute(
-            """
-            SELECT * FROM subcategory_plan_items
-            WHERE user_id = ? AND track_id = ? AND subcategory_id = ?
-            ORDER BY day_index
-            """,
-            (user["id"], track_id, sub_id),
-        ).fetchall()
+    return query_all(
+        """
+        SELECT * FROM subcategory_plan_items
+        WHERE user_id = ? AND track_id = ? AND subcategory_id = ?
+        ORDER BY day_index
+        """,
+        (user["id"], track_id, sub_id),
+    )
 
 
 def render_editable_subcategory_plan(items: list[sqlite3.Row], csrf_html: str = "") -> str:
@@ -918,32 +909,30 @@ def subcategory_page(track_id: str, sub_id: str, user: sqlite3.Row | None, recip
 
 
 def profile_page(user: sqlite3.Row) -> bytes:
-    with sqlite3.connect(DB_PATH) as db:
-        db.row_factory = sqlite3.Row
-        items = db.execute(
-            """
-            SELECT * FROM training_archive
-            WHERE user_id = ?
-            ORDER BY completed_at DESC, id DESC
-            """,
-            (user["id"],),
-        ).fetchall()
-        saved_recipes = db.execute(
-            """
-            SELECT * FROM saved_recipes
-            WHERE user_id = ?
-            ORDER BY saved_at DESC, id DESC
-            """,
-            (user["id"],),
-        ).fetchall()
-        weight_entries = db.execute(
-            """
-            SELECT * FROM weight_entries
-            WHERE user_id = ?
-            ORDER BY recorded_at DESC, id DESC
-            """,
-            (user["id"],),
-        ).fetchall()
+    items = query_all(
+        """
+        SELECT * FROM training_archive
+        WHERE user_id = ?
+        ORDER BY completed_at DESC, id DESC
+        """,
+        (user["id"],),
+    )
+    saved_recipes = query_all(
+        """
+        SELECT * FROM saved_recipes
+        WHERE user_id = ?
+        ORDER BY saved_at DESC, id DESC
+        """,
+        (user["id"],),
+    )
+    weight_entries = query_all(
+        """
+        SELECT * FROM weight_entries
+        WHERE user_id = ?
+        ORDER BY recorded_at DESC, id DESC
+        """,
+        (user["id"],),
+    )
 
     profile_content = f"""
     <article class="profile-card">
@@ -1219,32 +1208,35 @@ class TrainMeHandler(BaseHTTPRequestHandler):
         try:
             height = float(form["height"]) if form.get("height") else None
             weight = float(form["weight"]) if form.get("weight") else None
-            with sqlite3.connect(DB_PATH) as db:
-                cursor = db.execute(
+            user_id = insert_and_get_id(
+                """
+                INSERT INTO users (username, email, password, category, height, weight, goal)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    form.get("username", "").strip(),
+                    form.get("email", "").strip().lower(),
+                    hash_password(form.get("password", "")),
+                    category,
+                    height,
+                    weight,
+                    form.get("goal", "").strip(),
+                ),
+            )
+            if weight is not None:
+                execute(
                     """
-                    INSERT INTO users (username, email, password, category, height, weight, goal)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO weight_entries (user_id, weight, recorded_at)
+                    VALUES (?, ?, ?)
                     """,
-                    (
-                        form.get("username", "").strip(),
-                        form.get("email", "").strip().lower(),
-                        hash_password(form.get("password", "")),
-                        category,
-                        height,
-                        weight,
-                        form.get("goal", "").strip(),
-                    ),
+                    (user_id, weight, int(time.time())),
                 )
-                user_id = cursor.lastrowid
-                if weight is not None:
-                    db.execute(
-                        """
-                        INSERT INTO weight_entries (user_id, weight, recorded_at)
-                        VALUES (?, ?, ?)
-                        """,
-                        (user_id, weight, int(time.time())),
-                    )
-        except (sqlite3.IntegrityError, ValueError):
+        except ValueError:
+            self.redirect("/registrera?fel=finns")
+            return
+        except Exception as exc:
+            if not isinstance(exc, IntegrityError):
+                raise
             self.redirect("/registrera?fel=finns")
             return
 
@@ -1389,22 +1381,21 @@ class TrainMeHandler(BaseHTTPRequestHandler):
             return
 
         now = int(time.time())
-        with sqlite3.connect(DB_PATH) as db:
-            db.execute(
-                """
-                INSERT INTO weight_entries (user_id, weight, recorded_at)
-                VALUES (?, ?, ?)
-                """,
-                (user["id"], weight, now),
-            )
-            db.execute(
-                """
-                UPDATE users
-                SET weight = ?
-                WHERE id = ?
-                """,
-                (weight, user["id"]),
-            )
+        execute(
+            """
+            INSERT INTO weight_entries (user_id, weight, recorded_at)
+            VALUES (?, ?, ?)
+            """,
+            (user["id"], weight, now),
+        )
+        execute(
+            """
+            UPDATE users
+            SET weight = ?
+            WHERE id = ?
+            """,
+            (weight, user["id"]),
+        )
 
         self.redirect("/profile#profile-data")
 

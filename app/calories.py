@@ -3,7 +3,7 @@ from __future__ import annotations
 import sqlite3
 import time
 
-from app.config import DB_PATH
+from app.db import execute, query_all
 from app.utils import esc
 
 
@@ -17,28 +17,25 @@ def today_bounds() -> tuple[int, int]:
 
 
 def add_calorie_entry(user_id: int, label: str, calories: int) -> None:
-    with sqlite3.connect(DB_PATH) as db:
-        db.execute(
-            """
-            INSERT INTO calorie_entries (user_id, label, calories, logged_at)
-            VALUES (?, ?, ?, ?)
-            """,
-            (user_id, label, calories, int(time.time())),
-        )
+    execute(
+        """
+        INSERT INTO calorie_entries (user_id, label, calories, logged_at)
+        VALUES (?, ?, ?, ?)
+        """,
+        (user_id, label, calories, int(time.time())),
+    )
 
 
 def get_today_calorie_entries(user_id: int) -> list[sqlite3.Row]:
     start, end = today_bounds()
-    with sqlite3.connect(DB_PATH) as db:
-        db.row_factory = sqlite3.Row
-        return db.execute(
-            """
-            SELECT * FROM calorie_entries
-            WHERE user_id = ? AND logged_at >= ? AND logged_at < ?
-            ORDER BY logged_at DESC, id DESC
-            """,
-            (user_id, start, end),
-        ).fetchall()
+    return query_all(
+        """
+        SELECT * FROM calorie_entries
+        WHERE user_id = ? AND logged_at >= ? AND logged_at < ?
+        ORDER BY logged_at DESC, id DESC
+        """,
+        (user_id, start, end),
+    )
 
 
 def render_calorie_counter(
