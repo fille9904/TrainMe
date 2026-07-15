@@ -7,6 +7,8 @@ services:
     startCommand: python app/main.py
     healthCheckPath: /
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
       - key: HOST
         value: 0.0.0.0
       - key: TRAINME_DB_PATH
