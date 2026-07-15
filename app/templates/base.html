@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="sv">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,21 +13,21 @@
             <span>TrainMe</span>
         </a>
 
-        <nav class="nav-links" aria-label="Huvudmeny">
-            <a href="/spar/atlet">Atlet</a>
-            <a href="/spar/aktiv">Aktiv</a>
-            <a href="/spar/komma-igang">Komma igang</a>
+        <nav class="nav-links" aria-label="Main menu">
+            <a href="/spar/atlet">Athlete</a>
+            <a href="/spar/aktiv">Active</a>
+            <a href="/spar/komma-igang">Getting started</a>
         </nav>
 
         <div class="account-actions">
             {% if user %}
                 <a class="ghost-button" href="/ai-coach">AI coach</a>
                 <form method="post" action="/logga-ut">
-                    <button class="icon-button" type="submit" aria-label="Logga ut" title="Logga ut">↗</button>
+                    <button class="icon-button" type="submit" aria-label="Log out" title="Log out">Exit</button>
                 </form>
             {% else %}
-                <a class="ghost-button" href="/logga-in">Logga in</a>
-                <a class="primary-button compact" href="/registrera">Skapa konto</a>
+                <a class="ghost-button" href="/logga-in">Log in</a>
+                <a class="primary-button compact" href="/registrera">Create account</a>
             {% endif %}
         </div>
     </header>

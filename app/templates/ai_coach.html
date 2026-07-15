@@ -4,20 +4,20 @@
 
 {% block content %}
 <section class="page-hero {{ track.accent }}">
-    <p class="eyebrow">Endast med konto</p>
+    <p class="eyebrow">Account only</p>
     <h1>AI coach for {{ track.name }}</h1>
-    <p class="lead">Har samlas personliga traningstips baserat pa ditt spar, dina mal och framtida Strava-data.</p>
+    <p class="lead">Personal training tips based on your track, goals, and future Strava data appear here.</p>
 </section>
 
 <section class="coach-grid">
     <article class="coach-panel">
-        <h2>Dagens riktning</h2>
-        <p>AI-funktionen ar redo som yta. Nasta steg ar att koppla in en riktig AI-modell och skicka med profil, mal och Strava-sammanfattning.</p>
+        <h2>Today's direction</h2>
+        <p>The AI area is ready. The next step is connecting a real AI model with profile, goal, and Strava summary data.</p>
     </article>
     <article class="coach-panel">
-        <h2>Datakallor</h2>
-        <p>Profil: {{ user["username"] }}. Spar: {{ track.name }}. Strava: vantar pa koppling.</p>
-        <a class="text-link" href="/strava">Koppla Strava</a>
+        <h2>Data sources</h2>
+        <p>Profile: {{ user["username"] }}. Track: {{ track.name }}. Strava: waiting for connection.</p>
+        <a class="text-link" href="/strava">Connect Strava</a>
     </article>
 </section>
 {% endblock %}

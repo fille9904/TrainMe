@@ -1,33 +1,33 @@
 {% extends "base.html" %}
 
-{% block title %}Skapa konto | TrainMe{% endblock %}
+{% block title %}Create account | TrainMe{% endblock %}
 
 {% block content %}
 <section class="form-shell">
     <div>
-        <p class="eyebrow">TrainMe konto</p>
-        <h1>Skapa konto</h1>
-        <p class="lead">Kontot laser upp AI-hjalp, sparade mal och mojlighet att koppla Strava.</p>
+        <p class="eyebrow">TrainMe account</p>
+        <h1>Create account</h1>
+        <p class="lead">An account unlocks AI help, saved goals, and the option to connect Strava.</p>
     </div>
 
     <form class="form-card" method="post" action="/registrera">
         {% if request.query_params.get("fel") %}
-            <p class="form-error">E-post eller anvandarnamn finns redan.</p>
+            <p class="form-error">Email or username already exists.</p>
         {% endif %}
 
-        <label>Anvandarnamn
+        <label>Username
             <input name="username" type="text" autocomplete="username" required>
         </label>
 
-        <label>E-post
+        <label>Email
             <input name="email" type="email" autocomplete="email" required>
         </label>
 
-        <label>Losenord
+        <label>Password
             <input name="password" type="password" autocomplete="new-password" minlength="6" required>
         </label>
 
-        <label>Spar
+        <label>Track
             <select name="category" required>
                 {% for id, track in tracks.items() %}
                     <option value="{{ id }}">{{ track.name }}</option>
@@ -36,20 +36,20 @@
         </label>
 
         <div class="two-fields">
-            <label>Langd cm
+            <label>Height cm
                 <input name="height" type="number" min="80" max="240" step="0.5">
             </label>
-            <label>Vikt kg
+            <label>Weight kg
                 <input name="weight" type="number" min="20" max="300" step="0.1">
             </label>
         </div>
 
-        <label>Mal
-            <textarea name="goal" rows="4" placeholder="Exempel: springa 10 km, bli starkare, fa battre kostvanor"></textarea>
+        <label>Goal
+            <textarea name="goal" rows="4" placeholder="Example: run 10 km, get stronger, build better nutrition habits"></textarea>
         </label>
 
-        <button class="primary-button" type="submit">Skapa konto</button>
-        <a class="text-link" href="/logga-in">Jag har redan konto</a>
+        <button class="primary-button" type="submit">Create account</button>
+        <a class="text-link" href="/logga-in">I already have an account</a>
     </form>
 </section>
 {% endblock %}

@@ -233,7 +233,7 @@ def fetch_strava_summary(user_id: int) -> tuple[str | None, str | None]:
     activity_lines = " | ".join(activity_metric_line(activity) for activity in activities[:10])
     return (
         f"Latest 10 Strava sessions: {sports}. Total: {distance_km:.1f} km, {hours:.1f} hours"
-        f"{f', and {total_calories:.0f} kcal/calories burned' if total_calories else ''}. "
+        f"{f', and {total_calories:.0f} kcal burned' if total_calories else ''}. "
         f"Average tempo/pace: {average_pace}; average speed: {average_speed}. "
         f"Workout data points for AI analysis: {activity_lines}.",
         None,
@@ -283,7 +283,7 @@ def fetch_strava_summary_html(user_id: int) -> tuple[str | None, str | None, str
 
     summary = (
         f"Latest 10 Strava sessions. Total: {total_distance_m / 1000:.1f} km, {total_seconds / 3600:.1f} hours"
-        f"{f', and {total_calories:.0f} kcal/calories burned' if total_calories else ''}. "
+        f"{f', and {total_calories:.0f} kcal burned' if total_calories else ''}. "
         f"Average tempo/pace: {format_pace(total_distance_m, total_seconds)}; average speed: {format_speed(total_distance_m, total_seconds)}. "
         f"Workout data points for AI analysis: {' | '.join(summary_lines)}."
     )

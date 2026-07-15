@@ -79,7 +79,7 @@ def header(user: sqlite3.Row | None) -> str:
         <a class="ghost-button" href="/ai-coach">AI coach</a>
         <a class="ghost-button" href="/strava">Strava</a>
         <a class="ghost-button" href="/profile">Profile</a>
-        <form method="post" action="/logga-ut">{csrf_input(user)}<button class="icon-button" type="submit" aria-label="Log out" title="Log out">â†—</button></form>
+        <form method="post" action="/logga-ut">{csrf_input(user)}<button class="icon-button" type="submit" aria-label="Log out" title="Log out">Exit</button></form>
         """
         if user
         else """
@@ -103,7 +103,7 @@ def header(user: sqlite3.Row | None) -> str:
 def page(title: str, body: str, user: sqlite3.Row | None = None) -> bytes:
     document = f"""
     <!DOCTYPE html>
-    <html lang="sv">
+    <html lang="en">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -788,7 +788,7 @@ def ai_page(user: sqlite3.Row, chat_question: str | None = None, chat_answer: st
     else:
         coach_content = f"""
         <section class="coach-grid">
-            <article class="coach-panel"><h2>Today's direction</h2><p>AI-funktionen ar redo som yta. When a real AI model is connected, TrainMe will send the profile, goal, and Strava summary below.</p></article>
+            <article class="coach-panel"><h2>Today's direction</h2><p>The AI area is ready. When a real AI model is connected, TrainMe will send the profile, goal, and Strava summary below.</p></article>
             <article class="coach-panel"><h2>Data sources</h2><p>{esc(profile_summary)}</p>{strava_block}</article>
         </section>
         """
@@ -970,7 +970,7 @@ def profile_page(user: sqlite3.Row) -> bytes:
                 f"""
                 <article class="archive-item">
                     <div>
-                        <p class="eyebrow">{esc(item["source"])} Â· {esc(category)}</p>
+                        <p class="eyebrow">{esc(item["source"])} - {esc(category)}</p>
                         <h2>{esc(item["day_name"])}</h2>
                         <p>{esc(item["session"])}</p>
                     </div>

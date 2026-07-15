@@ -11,31 +11,31 @@
 
 <section class="program-layout">
     <div>
-        <h2>Startforslag</h2>
+        <h2>Starting suggestion</h2>
         <div class="step-list">
             <div>
                 <span>01</span>
-                <p>Valj 2-4 pass per vecka utifran din nuvarande niva.</p>
+                <p>Choose 2-4 sessions per week based on your current level.</p>
             </div>
             <div>
                 <span>02</span>
-                <p>Folj upp energi, aterhamtning och progression efter varje vecka.</p>
+                <p>Review energy, recovery, and progress after each week.</p>
             </div>
             <div>
                 <span>03</span>
-                <p>{% if track_id == "komma-igang" %}Bygg kosten runt enkla rutiner: protein, gronsaker och regelbundna maltider.{% elif track_id == "aktiv" %}Justera kost och vila sa kroppen haller sig frisk over tid.{% else %}Anvand data fran pass for att styra belastning och kvalitet.{% endif %}</p>
+                <p>{% if track_id == "komma-igang" %}Build meals around simple routines: protein, vegetables, and regular meals.{% elif track_id == "aktiv" %}Adjust nutrition and rest so the body stays healthy over time.{% else %}Use workout data to guide load and quality.{% endif %}</p>
             </div>
         </div>
     </div>
 
     <aside class="locked-panel">
-        <h2>Personlig hjalp</h2>
+        <h2>Personal help</h2>
         {% if user %}
-            <p>Du ar inloggad. AI-coachen kan anvanda ditt spar och dina mal for att ge mer relevanta forslag.</p>
-            <a class="primary-button compact" href="/ai-coach">Oppna AI coach</a>
+            <p>You are logged in. The AI coach can use your track and goals to give more relevant suggestions.</p>
+            <a class="primary-button compact" href="/ai-coach">Open AI coach</a>
         {% else %}
-            <p>Det har fungerar utan konto. Skapa konto for AI-hjalp, sparade mal och Strava-koppling.</p>
-            <a class="primary-button compact" href="/registrera">Skapa konto</a>
+            <p>This works without an account. Create an account for AI help, saved goals, and Strava connection.</p>
+            <a class="primary-button compact" href="/registrera">Create account</a>
         {% endif %}
     </aside>
 </section>

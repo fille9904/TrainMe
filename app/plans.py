@@ -11,7 +11,7 @@ from app.db import execute
 def user_profile_summary(user: sqlite3.Row) -> str:
     parts = [f"Track: {TRACKS.get(user['category'], TRACKS['aktiv'])['name']}"]
     if user["height"]:
-        parts.append(f"Langd: {user['height']} cm")
+        parts.append(f"Height: {user['height']} cm")
     if user["weight"]:
         parts.append(f"Weight: {user['weight']} kg")
     if user["goal"]:
