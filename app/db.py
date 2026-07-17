@@ -209,6 +209,18 @@ def ensure_sqlite_db() -> None:
         )
         db.execute(
             """
+            CREATE TABLE IF NOT EXISTS ai_chat_messages (
+                id INTEGER PRIMARY KEY,
+                user_id INTEGER,
+                role VARCHAR,
+                content TEXT,
+                created_at INTEGER,
+                FOREIGN KEY(user_id) REFERENCES users(id)
+            )
+            """
+        )
+        db.execute(
+            """
             CREATE TABLE IF NOT EXISTS sessions (
                 token VARCHAR PRIMARY KEY,
                 user_id INTEGER,
@@ -319,6 +331,15 @@ def ensure_postgres_db() -> None:
             label TEXT,
             calories INTEGER,
             logged_at INTEGER
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS ai_chat_messages (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER REFERENCES users(id) ON DELETE CASCADE,
+            role VARCHAR,
+            content TEXT,
+            created_at INTEGER
         )
         """,
         """

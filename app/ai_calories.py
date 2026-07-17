@@ -11,6 +11,7 @@ from urllib.request import Request, urlopen
 
 OPENAI_RESPONSES_URL = "https://api.openai.com/v1/responses"
 OPENAI_MODEL = os.environ.get("OPENAI_MODEL", "gpt-5.6")
+CALORIE_NUMBER_PATTERN = r"(?:\d{1,2}(?:[,\s]\d{3})+|\d{2,5})"
 
 CALORIE_HINTS = {
     "banana": 105,
@@ -41,13 +42,30 @@ def openai_api_key() -> str:
 
 
 def extract_calories(text: str) -> int | None:
-    match = re.search(r"(\d{2,5})", text)
-    if not match:
-        return None
-    calories = int(match.group(1))
-    if 1 <= calories <= 5000:
-        return calories
+    marker = re.search(
+        rf"ESTIMATE_KCAL\s*:\s*({CALORIE_NUMBER_PATTERN})",
+        text,
+        flags=re.IGNORECASE,
+    )
+    matches = [marker] if marker else list(re.finditer(rf"(?<!\d)({CALORIE_NUMBER_PATTERN})(?!\d)", text))
+    for match in matches:
+        if not match:
+            continue
+        calories = int(re.sub(r"[,\s]", "", match.group(1)))
+        if 1 <= calories <= 5000:
+            return calories
     return None
+
+
+def calorie_explanation(text: str) -> str:
+    explanation = re.sub(
+        rf"^\s*ESTIMATE_KCAL\s*:\s*{CALORIE_NUMBER_PATTERN}\s*",
+        "",
+        text,
+        count=1,
+        flags=re.IGNORECASE,
+    ).strip()
+    return explanation or "AI calorie estimate calculated."
 
 
 def local_text_calorie_estimate(description: str) -> tuple[int | None, str]:
@@ -82,8 +100,10 @@ def call_openai_calorie_estimator(content: list[dict[str, Any]]) -> tuple[int | 
         return None, "OpenAI API key is not configured."
 
     prompt = (
-        "Estimate the calories in this food intake. Return one short sentence with an approximate kcal number. "
-        "If uncertain, give a reasonable range but include a single best estimate in kcal."
+        "Estimate the calories in this food intake. The first line must be exactly "
+        "ESTIMATE_KCAL: followed by one integer without thousands separators. "
+        "On the second line, give one short explanation. If uncertain, the first line must still contain "
+        "one best estimate; the explanation may include a reasonable range."
     )
     body = {
         "model": OPENAI_MODEL,
@@ -111,7 +131,7 @@ def call_openai_calorie_estimator(content: list[dict[str, Any]]) -> tuple[int | 
 
     output = response_output_text(payload)
     calories = extract_calories(output)
-    return calories, output or "AI returned no estimate."
+    return calories, calorie_explanation(output) if output else "AI returned no estimate."
 
 
 def estimate_calories_from_text(description: str) -> tuple[int | None, str]:

@@ -31,6 +31,7 @@ from app.config import (  # noqa: E402
     TRACKS,
 )
 from app.calories import add_calorie_entry, render_calorie_counter, today_bounds
+from app.chat_history import add_chat_exchange, render_chat_history
 from app.ai_calories import estimate_calories_from_image, estimate_calories_from_text
 from app.ai_coach import generate_coach_reply
 from app.db import IntegrityError, ensure_db, execute, query_one  # noqa: E402
@@ -667,7 +668,7 @@ def coach_reply(user: sqlite3.Row, question: str, strava_summary: str | None) ->
     return generate_coach_reply(user, question, strava_summary)
 
 
-def ai_page(user: sqlite3.Row, chat_question: str | None = None, chat_answer: str | None = None) -> bytes:
+def ai_page(user: sqlite3.Row) -> bytes:
     track_id = user["category"] or "aktiv"
     track = TRACKS.get(track_id, TRACKS["aktiv"])
     strava_summary, strava_html, strava_error = fetch_strava_summary_html(user["id"])
@@ -685,12 +686,7 @@ def ai_page(user: sqlite3.Row, chat_question: str | None = None, chat_answer: st
 
     profile_summary = user_profile_summary(user)
     plan_items = get_user_training_plan(user, track_id, strava_summary)
-    chat_history = ""
-    if chat_question and chat_answer:
-        chat_history = f"""
-        <div class="chat-message user-message">{esc(chat_question)}</div>
-        <div class="chat-message ai-message">{esc(chat_answer)}</div>
-        """
+    chat_history = render_chat_history(user["id"])
 
     if track_id == "atlet":
         coach_content = f"""
@@ -725,15 +721,14 @@ def ai_page(user: sqlite3.Row, chat_question: str | None = None, chat_answer: st
             <article class="coach-panel chat-panel">
                 <p class="eyebrow">AI dialogue</p>
                 <h2>Chat with the coach</h2>
-                <div class="chat-window">
-                    <div class="chat-message ai-message">Ask me about this week's sessions, recovery, nutrition, or how to adjust the plan.</div>
-                    {chat_history}
-                </div>
+                <p>Ask me about this week's sessions, recovery, nutrition, or how to adjust the plan.</p>
                 <form class="chat-form" method="post" action="/ai-chat">
                     {csrf_input(user)}
+                    <input type="hidden" name="return_to" value="/ai-coach">
                     <textarea name="message" rows="3" maxlength="2000" placeholder="Example: How should I adjust if I feel worn down after intervals?" required></textarea>
                     <button class="primary-button compact" type="submit">Send</button>
                 </form>
+                {chat_history}
             </article>
         </section>
         """
@@ -745,15 +740,14 @@ def ai_page(user: sqlite3.Row, chat_question: str | None = None, chat_answer: st
             <article class="coach-panel chat-panel">
                 <p class="eyebrow">AI dialogue</p>
                 <h2>Chat with the coach</h2>
-                <div class="chat-window">
-                    <div class="chat-message ai-message">Ask me about training, recovery, nutrition, or how to build a routine that fits your level.</div>
-                    {chat_history}
-                </div>
+                <p>Ask me about training, recovery, nutrition, or how to build a routine that fits your level.</p>
                 <form class="chat-form" method="post" action="/ai-chat">
                     {csrf_input(user)}
+                    <input type="hidden" name="return_to" value="/ai-coach">
                     <textarea name="message" rows="3" maxlength="2000" placeholder="Example: What should I focus on this week?" required></textarea>
                     <button class="primary-button compact" type="submit">Send</button>
                 </form>
+                {chat_history}
             </article>
         </section>
         """
@@ -793,15 +787,15 @@ def subcategory_page(track_id: str, sub_id: str, user: sqlite3.Row | None, recip
         else:
             strava_block = '<p>Strava is not connected yet. Connect Strava for more personal suggestions.</p><a class="text-link" href="/strava">Connect Strava</a>'
             strava_status = "Strava is not connected yet."
-        chat_block = """
-            <div class="chat-window">
-                <div class="chat-message ai-message">Ask me how to adjust the week within this subcategory.</div>
-            </div>
+        chat_block = f"""
+            <p>Ask me how to adjust the week within this subcategory.</p>
             <form class="chat-form" method="post" action="/ai-chat">
                 {csrf_input(user)}
-                <textarea name="message" rows="3" placeholder="Example: How should I adapt the sessions if I miss Tuesday?" required></textarea>
+                <input type="hidden" name="return_to" value="/spar/{esc(track_id)}/{esc(sub_id)}">
+                <textarea name="message" rows="3" maxlength="2000" placeholder="Example: How should I adapt the sessions if I miss Tuesday?" required></textarea>
                 <button class="primary-button compact" type="submit">Send</button>
             </form>
+            {render_chat_history(user["id"])}
         """
     else:
         plan_html = render_weekly_plan(plan)
@@ -1135,6 +1129,12 @@ class TrainMeHandler(BaseHTTPRequestHandler):
         elif parsed.path == "/calories/add":
             user = self.current_user()
             self.redirect("/registrera") if not user else self.save_calories(user) if self.valid_post_user(user) else self.send_error(403, "Invalid CSRF token")
+        elif parsed.path == "/calories/update":
+            user = self.current_user()
+            self.redirect("/registrera") if not user else self.update_calorie_entry(user) if self.valid_post_user(user) else self.send_error(403, "Invalid CSRF token")
+        elif parsed.path == "/calories/delete":
+            user = self.current_user()
+            self.redirect("/registrera") if not user else self.delete_calorie_entry(user) if self.valid_post_user(user) else self.send_error(403, "Invalid CSRF token")
         elif parsed.path == "/calories/estimate-text":
             user = self.current_user()
             self.redirect("/registrera") if not user else self.estimate_text_calories(user) if self.valid_post_user(user) else self.send_error(403, "Invalid CSRF token")
@@ -1218,10 +1218,17 @@ class TrainMeHandler(BaseHTTPRequestHandler):
 
     def ai_chat(self, user: sqlite3.Row) -> None:
         form = self.form_data()
-        question = form.get("message", "").strip()
+        question = form.get("message", "").strip()[:2000]
+        return_to = form.get("return_to", "/ai-coach").strip() or "/ai-coach"
+        if return_to != "/ai-coach" and not return_to.startswith("/spar/"):
+            return_to = "/ai-coach"
+        if not question:
+            self.redirect(return_to)
+            return
         strava_summary, _ = fetch_strava_summary(user["id"])
         answer = coach_reply(user, question, strava_summary)
-        self.send_html(ai_page(user, chat_question=question, chat_answer=answer))
+        add_chat_exchange(user["id"], question, answer)
+        self.redirect(return_to)
 
     def update_plan_item(self, user: sqlite3.Row) -> None:
         form = self.form_data()
@@ -1367,10 +1374,8 @@ class TrainMeHandler(BaseHTTPRequestHandler):
 
     def save_calories(self, user: sqlite3.Row) -> None:
         form = self.form_data()
-        return_to = form.get("return_to", f"/spar/komma-igang/{DEFAULT_START_SUBCATEGORY}").strip() or f"/spar/komma-igang/{DEFAULT_START_SUBCATEGORY}"
-        if not return_to.startswith("/") or return_to.startswith("//"):
-            return_to = f"/spar/komma-igang/{DEFAULT_START_SUBCATEGORY}"
-        label = form.get("label", "").strip() or "Meal"
+        return_to = self.calorie_return_to(form)
+        label = (form.get("label", "").strip() or "Meal")[:80]
         try:
             calories = int(float(form.get("calories", "")))
         except ValueError:
@@ -1384,10 +1389,52 @@ class TrainMeHandler(BaseHTTPRequestHandler):
         add_calorie_entry(user["id"], label, calories)
         self.redirect(return_to)
 
+    def update_calorie_entry(self, user: sqlite3.Row) -> None:
+        form = self.form_data()
+        return_to = self.calorie_return_to(form)
+        label = (form.get("label", "").strip() or "Meal")[:80]
+        try:
+            entry_id = int(form.get("entry_id", ""))
+            calories = int(float(form.get("calories", "")))
+        except ValueError:
+            self.redirect(return_to)
+            return
+
+        if entry_id < 1 or not 1 <= calories <= 5000:
+            self.redirect(return_to)
+            return
+
+        execute(
+            """
+            UPDATE calorie_entries
+            SET label = ?, calories = ?
+            WHERE id = ? AND user_id = ?
+            """,
+            (label, calories, entry_id, user["id"]),
+        )
+        self.redirect(return_to)
+
+    def delete_calorie_entry(self, user: sqlite3.Row) -> None:
+        form = self.form_data()
+        return_to = self.calorie_return_to(form)
+        try:
+            entry_id = int(form.get("entry_id", ""))
+        except ValueError:
+            self.redirect(return_to)
+            return
+
+        if entry_id > 0:
+            execute(
+                "DELETE FROM calorie_entries WHERE id = ? AND user_id = ?",
+                (entry_id, user["id"]),
+            )
+        self.redirect(return_to)
+
     def calorie_return_to(self, form: dict[str, str]) -> str:
-        return_to = form.get("return_to", "/spar/aktiv/strength").strip() or "/spar/aktiv/strength"
+        default_path = f"/spar/komma-igang/{DEFAULT_START_SUBCATEGORY}"
+        return_to = form.get("return_to", default_path).strip() or default_path
         if not return_to.startswith("/") or return_to.startswith("//"):
-            return_to = "/spar/aktiv/strength"
+            return_to = default_path
         return return_to
 
     def redirect_with_calorie_message(self, return_to: str, message: str) -> None:

@@ -528,10 +528,10 @@ main {
 
 .athlete-coach-grid {
     display: grid;
-    grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr);
+    grid-template-columns: minmax(0, 1.15fr) repeat(2, minmax(0, 1fr));
     column-gap: 18px;
     row-gap: 8px;
-    max-width: 1180px;
+    max-width: 1480px;
     margin: 24px auto 0;
 }
 
@@ -958,17 +958,72 @@ main {
 }
 
 .calorie-entry-list li {
-    display: flex;
-    justify-content: space-between;
-    gap: 12px;
     padding: 10px 12px;
     border: 1px solid var(--line);
     border-radius: 8px;
     background: #0d0f13;
 }
 
-.calorie-entry-list span {
+.calorie-entry-summary {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    cursor: pointer;
+}
+
+.calorie-entry-summary span {
     color: var(--muted);
+}
+
+.calorie-entry-editor {
+    display: grid;
+    gap: 10px;
+    margin-top: 12px;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+}
+
+.calorie-entry-edit-form {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 120px auto;
+    gap: 10px;
+    align-items: end;
+}
+
+.calorie-entry-edit-form label {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 800;
+}
+
+.calorie-entry-edit-form input {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #090b0f;
+    color: var(--text);
+    padding: 10px 12px;
+}
+
+.calorie-entry-delete-form {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.calorie-delete-button {
+    border: 1px solid rgba(238, 103, 103, 0.5);
+    border-radius: 8px;
+    background: rgba(238, 103, 103, 0.08);
+    color: #ff9d9d;
+    padding: 9px 12px;
+    font-weight: 900;
+    cursor: pointer;
+}
+
+.calorie-delete-button:hover {
+    background: rgba(238, 103, 103, 0.16);
 }
 
 .meal-tips-heading {
@@ -1105,6 +1160,19 @@ main {
     min-height: 420px;
 }
 
+.chat-history {
+    display: grid;
+    gap: 10px;
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
+}
+
+.chat-history h3 {
+    margin: 0;
+    font-size: 16px;
+}
+
 .chat-window {
     display: grid;
     align-content: start;
@@ -1117,6 +1185,16 @@ main {
     border: 1px solid var(--line);
     border-radius: 8px;
     background: #0d0f13;
+}
+
+.chat-history .chat-window {
+    margin: 0;
+}
+
+.chat-history-empty {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
 }
 
 .chat-message {
@@ -1469,6 +1547,7 @@ main {
     .strava-total-grid,
     .calorie-total-grid,
     .calorie-entry-form,
+    .calorie-entry-edit-form,
     .calorie-ai-tools,
     .step-list div,
     .editable-week-day,

@@ -52,13 +52,37 @@ def render_calorie_counter(
     remaining = DEFAULT_DAILY_CALORIE_TARGET - consumed + burned
     progress = min(int((consumed / DEFAULT_DAILY_CALORIE_TARGET) * 100), 100)
     entry_rows = []
-    for entry in entries[:5]:
+    for entry in entries:
         logged = time.strftime("%H:%M", time.localtime(entry["logged_at"] or 0))
         entry_rows.append(
             f"""
-            <li>
-                <strong>{esc(entry["label"] or "Meal")}</strong>
-                <span>{esc(entry["calories"])} kcal - {esc(logged)}</span>
+            <li class="calorie-entry-item">
+                <details>
+                    <summary class="calorie-entry-summary">
+                        <strong>{esc(entry["label"] or "Meal")}</strong>
+                        <span>{esc(entry["calories"])} kcal - {esc(logged)}</span>
+                    </summary>
+                    <div class="calorie-entry-editor">
+                        <form class="calorie-entry-edit-form" method="post" action="/calories/update">
+                            {csrf_html}
+                            <input type="hidden" name="entry_id" value="{esc(entry["id"])}">
+                            <input type="hidden" name="return_to" value="{esc(return_to)}">
+                            <label>Meal or snack
+                                <input name="label" type="text" value="{esc(entry["label"] or "Meal")}" maxlength="80" required>
+                            </label>
+                            <label>Calories
+                                <input name="calories" type="number" value="{esc(entry["calories"])}" min="1" max="5000" step="1" required>
+                            </label>
+                            <button class="ghost-button compact" type="submit">Save changes</button>
+                        </form>
+                        <form class="calorie-entry-delete-form" method="post" action="/calories/delete">
+                            {csrf_html}
+                            <input type="hidden" name="entry_id" value="{esc(entry["id"])}">
+                            <input type="hidden" name="return_to" value="{esc(return_to)}">
+                            <button class="calorie-delete-button" type="submit">Delete meal</button>
+                        </form>
+                    </div>
+                </details>
             </li>
             """
         )
