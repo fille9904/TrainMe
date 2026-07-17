@@ -17,19 +17,19 @@ SESSION_MAX_AGE = 60 * 60 * 24 * 30
 
 
 TRACKS: dict[str, dict[str, Any]] = {
-    "atlet": {
-        "name": "Athlete",
-        "tagline": "For users who want to improve performance and make smarter decisions from training data.",
+    "komma-igang": {
+        "name": "Getting started",
+        "tagline": "For users who want to start gently, build habits, and get extra nutrition support.",
         "focus": [
-            "Performance analysis using Strava data",
-            "AI tips for load, recovery, and progression",
-            "Suggestions for training formats that build capacity",
+            "General movement that is easy to start with",
+            "Strong focus on simple nutrition habits",
+            "Small steps that build confidence",
         ],
-        "accent": "performance",
+        "accent": "start",
         "subcategories": {
-            "strength": "Explosiveness, max strength, and supporting sessions for athletic performance.",
-            "mixed": "Periodized weeks with technique, mobility, recovery, and quality sessions.",
-            "cardio": "Intervals, distance, zones, and Strava-based fitness tracking.",
+            "start-with-gym": "Easy gym-based workouts with machines, light weights, and walking on recovery days.",
+            "start-without-gym": "Simple home and outdoor workouts with no equipment, plus walking as active rest.",
+            "lose-weight": "Low-impact training, walking, and nutrition support for steady weight loss.",
         },
     },
     "aktiv": {
@@ -47,19 +47,19 @@ TRACKS: dict[str, dict[str, Any]] = {
             "cardio": "Cardio sessions for heart health, energy, and better everyday recovery.",
         },
     },
-    "komma-igang": {
-        "name": "Getting started",
-        "tagline": "For users who want to start gently, build habits, and get extra nutrition support.",
+    "atlet": {
+        "name": "Athlete",
+        "tagline": "For users who want to improve performance and make smarter decisions from training data.",
         "focus": [
-            "General movement that is easy to start with",
-            "Strong focus on simple nutrition habits",
-            "Small steps that build confidence",
+            "Performance analysis using Strava data",
+            "AI tips for load, recovery, and progression",
+            "Suggestions for training formats that build capacity",
         ],
-        "accent": "start",
+        "accent": "performance",
         "subcategories": {
-            "start-with-gym": "Easy gym-based workouts with machines, light weights, and walking on recovery days.",
-            "start-without-gym": "Simple home and outdoor workouts with no equipment, plus walking as active rest.",
-            "lose-weight": "Low-impact training, walking, and nutrition support for steady weight loss.",
+            "strength": "Explosiveness, max strength, and supporting sessions for athletic performance.",
+            "mixed": "Periodized weeks with technique, mobility, recovery, and quality sessions.",
+            "cardio": "Intervals, distance, zones, and Strava-based fitness tracking.",
         },
     },
 }

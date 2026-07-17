@@ -32,6 +32,7 @@ from app.config import (  # noqa: E402
 )
 from app.calories import add_calorie_entry, render_calorie_counter, today_bounds
 from app.ai_calories import estimate_calories_from_image, estimate_calories_from_text
+from app.ai_coach import generate_coach_reply
 from app.db import IntegrityError, ensure_db, execute, query_one  # noqa: E402
 from app.db import insert_and_get_id, query_all  # noqa: E402
 from app.plans import (  # noqa: E402
@@ -75,7 +76,7 @@ DEFAULT_START_SUBCATEGORY = "start-without-gym"
 
 def header(user: sqlite3.Row | None) -> str:
     auth = (
-        """
+        f"""
         <a class="ghost-button" href="/ai-coach">AI coach</a>
         <a class="ghost-button" href="/strava">Strava</a>
         <a class="ghost-button" href="/profile">Profile</a>
@@ -91,9 +92,9 @@ def header(user: sqlite3.Row | None) -> str:
     <header class="site-header">
         <a class="brand" href="/"><span class="brand-mark">T</span><span>TrainMe</span></a>
         <nav class="nav-links" aria-label="Main menu">
-            <a href="/spar/atlet">Athlete</a>
-            <a href="/spar/aktiv">Active</a>
             <a href="/spar/komma-igang">Getting started</a>
+            <a href="/spar/aktiv">Active</a>
+            <a href="/spar/atlet">Athlete</a>
         </nav>
         <div class="account-actions">{auth}</div>
     </header>
@@ -146,7 +147,7 @@ def home_page(user: sqlite3.Row | None) -> bytes:
         <div class="hero-copy">
             <p class="eyebrow">Training help for different levels</p>
             <h1>TrainMe</h1>
-            <p class="lead">Choose whether you are an Athlete, Active, or Getting started. You can explore for free,
+            <p class="lead">Choose whether you are Getting started, Active, or an Athlete. You can explore for free,
             and with an account you get AI help and Strava-based insights.</p>
             <div class="hero-actions">
                 <a class="primary-button" href="/registrera">Create account</a>
@@ -663,56 +664,7 @@ def render_editable_subcategory_plan(items: list[sqlite3.Row], csrf_html: str = 
 
 
 def coach_reply(user: sqlite3.Row, question: str, strava_summary: str | None) -> str:
-    if not question.strip():
-        return "Write a question about the weekly plan, recovery, nutrition, or how to interpret Strava data."
-
-    goal = user["goal"] or "your goal"
-    lower_question = question.lower()
-    metric_question = any(
-        word in lower_question
-        for word in ["tempo", "pace", "speed", "kcal", "calorie", "calories", "burned", "strava"]
-    )
-    if metric_question and strava_summary:
-        return (
-            "I can use your Strava tempo and kcal data as training-load signals. "
-            f"Here is what I see: {strava_summary} "
-            "Faster tempo with high kcal burned usually means a harder session, so keep the next hard workout separated by recovery or an easy walk. "
-            "If tempo is improving at the same effort and kcal/hour is stable, that suggests better efficiency."
-        )
-
-    data_hint = (
-        "I use the Strava summary, including tempo/pace and kcal burned, as load input and adjust volume gradually."
-        if strava_summary
-        else "Connect Strava so I can account for your actual training history."
-    )
-    return (
-        f"Based on the profile and goal '{goal}' I would prioritize one truly good quality session, "
-        f"enough recovery, and simple follow-up after each session. {data_hint}"
-    )
-
-
-def ai_page(user: sqlite3.Row) -> bytes:
-    track_id = user["category"] or "aktiv"
-    track = TRACKS.get(track_id, TRACKS["aktiv"])
-    strava_summary, strava_error = fetch_strava_summary(user["id"])
-    if strava_summary:
-        strava_block = f"<p>{esc(strava_summary)}</p>"
-    elif strava_error:
-        strava_block = f"<p>{esc(strava_error)}</p><a class=\"text-link\" href=\"/strava\">Check the Strava connection</a>"
-    else:
-        strava_block = '<p>Strava is waiting for connection. Connect Strava so the AI bot gets training data as input.</p><a class="text-link" href="/strava">Connect Strava</a>'
-    body = f"""
-    <section class="page-hero {track["accent"]}">
-        <p class="eyebrow">Account only</p>
-        <h1>AI coach for {esc(track["name"])}</h1>
-        <p class="lead">Personal training tips based on your track, goals, and future Strava data are collected here.</p>
-    </section>
-    <section class="coach-grid">
-        <article class="coach-panel"><h2>Today's direction</h2><p>The AI area is ready. When a real AI model is connected, TrainMe will send the profile, goals, and Strava summary below.</p></article>
-        <article class="coach-panel"><h2>Data sources</h2><p>Profile: {esc(user["username"])}. Track: {esc(track["name"])}.</p>{strava_block}</article>
-    </section>
-    """
-    return page("AI coach | TrainMe", body, user)
+    return generate_coach_reply(user, question, strava_summary)
 
 
 def ai_page(user: sqlite3.Row, chat_question: str | None = None, chat_answer: str | None = None) -> bytes:
@@ -779,7 +731,7 @@ def ai_page(user: sqlite3.Row, chat_question: str | None = None, chat_answer: st
                 </div>
                 <form class="chat-form" method="post" action="/ai-chat">
                     {csrf_input(user)}
-                    <textarea name="message" rows="3" placeholder="Example: How should I adjust if I feel worn down after intervals?" required></textarea>
+                    <textarea name="message" rows="3" maxlength="2000" placeholder="Example: How should I adjust if I feel worn down after intervals?" required></textarea>
                     <button class="primary-button compact" type="submit">Send</button>
                 </form>
             </article>
@@ -788,8 +740,21 @@ def ai_page(user: sqlite3.Row, chat_question: str | None = None, chat_answer: st
     else:
         coach_content = f"""
         <section class="coach-grid">
-            <article class="coach-panel"><h2>Today's direction</h2><p>The AI area is ready. When a real AI model is connected, TrainMe will send the profile, goal, and Strava summary below.</p></article>
+            <article class="coach-panel"><h2>Today's direction</h2><p>Ask the coach for practical guidance based on your track, goal, and recent activity.</p></article>
             <article class="coach-panel"><h2>Data sources</h2><p>{esc(profile_summary)}</p>{strava_block}</article>
+            <article class="coach-panel chat-panel">
+                <p class="eyebrow">AI dialogue</p>
+                <h2>Chat with the coach</h2>
+                <div class="chat-window">
+                    <div class="chat-message ai-message">Ask me about training, recovery, nutrition, or how to build a routine that fits your level.</div>
+                    {chat_history}
+                </div>
+                <form class="chat-form" method="post" action="/ai-chat">
+                    {csrf_input(user)}
+                    <textarea name="message" rows="3" maxlength="2000" placeholder="Example: What should I focus on this week?" required></textarea>
+                    <button class="primary-button compact" type="submit">Send</button>
+                </form>
+            </article>
         </section>
         """
 
@@ -1140,8 +1105,9 @@ class TrainMeHandler(BaseHTTPRequestHandler):
         elif parsed.path == "/logga-in":
             self.login()
         elif parsed.path == "/logga-ut":
-            user = self.current_user()
-            self.redirect("/", clear_cookie=True) if self.valid_post_user(user) else self.send_error(403, "Invalid CSRF token")
+            # Logging out only affects the caller's own session, so it is safe and
+            # friendlier to make this endpoint idempotent even for stale pages.
+            self.redirect("/", clear_cookie=True)
         elif parsed.path == "/strava/disconnect":
             user = self.current_user()
             self.redirect("/registrera") if not user else self.strava_disconnect(user) if self.valid_post_user(user) else self.send_error(403, "Invalid CSRF token")

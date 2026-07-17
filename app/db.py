@@ -50,9 +50,16 @@ def connect():
         with psycopg.connect(postgres_url()) as db:
             yield db
     else:
-        with sqlite3.connect(DB_PATH) as db:
+        db = sqlite3.connect(DB_PATH)
+        try:
             db.row_factory = sqlite3.Row
             yield db
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
 
 
 def fetch_all(cursor: Any) -> list[Row]:
